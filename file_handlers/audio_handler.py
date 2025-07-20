@@ -3,7 +3,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from watchdog.events import FileSystemEventHandler
-from core.config import OUTPUT_DIR, TEXT_DIR, ARCHIVE_DIR
+from core.config import FINAL_DIR, TEXT_DIR, ARCHIVE_DIR
 
 class AudioHandler(FileSystemEventHandler):
     def __init__(self):
@@ -25,7 +25,7 @@ class AudioHandler(FileSystemEventHandler):
 
     # Helper Methods
     def convert_file(self, path:Path):
-        wav_path = OUTPUT_DIR / path.with_suffix(".wav").name
+        wav_path = FINAL_DIR / path.with_suffix(".wav").name
 
         if path.suffix != ".wav":
             utils.convert_to_wav(str(path), str(wav_path))

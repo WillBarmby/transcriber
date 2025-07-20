@@ -3,7 +3,6 @@ from pathlib import Path
 # Directories
 BASE_DIR = Path.home() / "Python-Projects/watch_and_transcribe/file_folders"
 INPUT_DIR = Path.home() / "Downloads"
-OUTPUT_DIR = BASE_DIR / "wav_files"
 TEXT_DIR = BASE_DIR / "txt files"
 FINAL_DIR = BASE_DIR / "final"
 ARCHIVE_DIR = BASE_DIR / "audio file archive"

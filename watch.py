@@ -1,14 +1,12 @@
 import time
 from watchdog.observers import Observer
-from core.config import  INPUT_DIR, OUTPUT_DIR, TEXT_DIR, ARCHIVE_DIR, FINAL_DIR
+from core.config import  INPUT_DIR, TEXT_DIR, ARCHIVE_DIR, FINAL_DIR
 from file_handlers import audio_handler, text_handler
       
 def main():
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    ARCHIVE_DIR.mkdir(parents=True,exist_ok=True)
-    TEXT_DIR.mkdir(parents=True,exist_ok=True)
-    FINAL_DIR.mkdir(parents=True,exist_ok=True)
-
+    for path in [FINAL_DIR, ARCHIVE_DIR, TEXT_DIR, FINAL_DIR]:
+        path.mkdir(parents=True,exist_ok=True)
+    
     audio_observer = Observer()
     text_observer = Observer()
     
