@@ -1,6 +1,6 @@
 import time
 from watchdog.observers import Observer
-from config import  INPUT_DIR, OUTPUT_DIR, TEXT_DIR, ARCHIVE_DIR, FINAL_DIR
+from core.config import  INPUT_DIR, OUTPUT_DIR, TEXT_DIR, ARCHIVE_DIR, FINAL_DIR
 from file_handlers import audio_handler, text_handler
       
 def main():

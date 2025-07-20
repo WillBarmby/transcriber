@@ -1,9 +1,9 @@
-import utils
+import core.utils as utils
 import shutil
 import subprocess
 from pathlib import Path
 from watchdog.events import FileSystemEventHandler
-from config import OUTPUT_DIR, TEXT_DIR, ARCHIVE_DIR
+from core.config import OUTPUT_DIR, TEXT_DIR, ARCHIVE_DIR
 
 class AudioHandler(FileSystemEventHandler):
     def __init__(self):

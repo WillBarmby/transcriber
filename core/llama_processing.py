@@ -1,6 +1,6 @@
 from pathlib import Path
 import spacy 
-from config import CHUNK_SIZE, CLEANUP_SYSTEM_PROMPT, CLEANUP_USER_PROMPT
+from core.config import CHUNK_SIZE, CLEANUP_SYSTEM_PROMPT, CLEANUP_USER_PROMPT
 from llama_cpp import Llama
 
 def chunk_text(text:str):

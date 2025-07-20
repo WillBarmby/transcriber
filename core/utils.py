@@ -1,4 +1,4 @@
-from config import WHISPER_CLI_PATH, MODEL_PATH
+from core.config import WHISPER_CLI_PATH, MODEL_PATH
 from fpdf import FPDF
 import subprocess
 from pathlib import Path
