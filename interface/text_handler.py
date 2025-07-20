@@ -3,12 +3,14 @@ from watchdog.events import FileSystemEventHandler
 from llama_cpp import Llama
 from config.paths import LLAMA_MODEL_PATH, FINAL_DIR
 from core.utils import chunk_text, rewrite_chunk
+import subprocess
 
 
 class TextHandler(FileSystemEventHandler):
-    def __init__(self):
+    def __init__(self, watched_folder):
         self.text_extensions = {".txt"}
         self.seen_files = list()
+        self.watched_folder = watched_folder
 
 # methods that could trigger when file is added
     def on_created(self, event):
@@ -35,7 +37,15 @@ class TextHandler(FileSystemEventHandler):
             return
         
         self.seen_files.append(path.name)
-        
+        result = subprocess.run(
+            ["osascript",
+            "-e",
+            'display dialog "Put this text file into summarization pipeline?" buttons {"No", "Yes"} default button "Yes"'], capture_output=True, text=True)
+
+        if "returned:No" in str(result):
+            print("User Declined to move file through pipeline")
+            return
+
         llm = Llama(
         model_path = LLAMA_MODEL_PATH,
         n_ctx=131072,

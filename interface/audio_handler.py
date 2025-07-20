@@ -3,12 +3,13 @@ import shutil
 import subprocess
 from pathlib import Path
 from watchdog.events import FileSystemEventHandler
-from core.config import FINAL_DIR, TEXT_DIR, ARCHIVE_DIR
+from config.paths import FINAL_DIR, TEXT_DIR, ARCHIVE_DIR
 
 class AudioHandler(FileSystemEventHandler):
-    def __init__(self):
+    def __init__(self, watched_folder):
         self.audio_extensions = {".mp3", ".wav", ".m4a"}
         self.seen_files = list()
+        self.watched_folder = watched_folder
 
     # methods that could trigger when file is added
     def on_created(self, event):
