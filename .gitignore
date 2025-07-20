@@ -1,0 +1,8 @@
+transcript-env/
+file_folders/
+__pycache__/
+.DS_Store
+.env
+.log
+.tmp
+final/
