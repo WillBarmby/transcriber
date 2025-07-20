@@ -1,8 +1,11 @@
-from core.config import WHISPER_CLI_PATH, MODEL_PATH
-from fpdf import FPDF
+from config.paths import WHISPER_CLI_PATH, MODEL_PATH
+from core.config import CHUNK_SIZE, CLEANUP_SYSTEM_PROMPT, CLEANUP_USER_PROMPT
 import subprocess
-from pathlib import Path
 import shutil
+import spacy 
+from pathlib import Path
+from llama_cpp import Llama
+from fpdf import FPDF
 
 def create_pdf(text, output_path:str):
         pdf_file = FPDF()
@@ -38,3 +41,31 @@ def transcribe_audio(wav_path:Path, output_path:Path):
         print(f"Transcribing with whisper.cpp: {wav_path.name}")
         subprocess.run(whisper_cpp_command, check=True)
         return output_path
+
+
+def chunk_text(text:str):
+    nlp = spacy.load("en_core_web_trf")
+    doc = nlp(text=text)
+    sentences = list(doc.sents)
+    chunks = list()
+    for i in range(0, len(sentences), CHUNK_SIZE):
+        chunk_sentences = sentences[i:i+CHUNK_SIZE]
+        chunk_text = " ".join(sentence.text for sentence in chunk_sentences)
+        chunks.append(chunk_text)
+    return chunks
+
+def rewrite_chunk(llm:Llama, chunk: str) -> str:
+    prompt = f"""
+    {CLEANUP_USER_PROMPT}
+    Transcript chunk:
+    {chunk}
+    Cleaned chunk:"""
+    result = llm.create_chat_completion(
+        messages=[
+            {"role": "system", "content": CLEANUP_SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens= 2048
+        )
+    print("GREAT SUCCESS")
+    return result["choices"][0]["message"]["content"]

@@ -1,9 +1,9 @@
 from pathlib import Path
 from watchdog.events import FileSystemEventHandler
 from llama_cpp import Llama
-from core.config import LLAMA_MODEL_PATH, FINAL_DIR
-from core.llama_processing import chunk_text
-from core.llama_processing import rewrite_chunk
+from config.paths import LLAMA_MODEL_PATH, FINAL_DIR
+from core.utils import chunk_text, rewrite_chunk
+
 
 class TextHandler(FileSystemEventHandler):
     def __init__(self):
