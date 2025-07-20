@@ -1,6 +1,6 @@
+from config.paths import  INPUT_DIR, TEXT_DIR, ARCHIVE_DIR, FINAL_DIR
 import time
 from watchdog.observers import Observer
-from config.paths import  INPUT_DIR, TEXT_DIR, ARCHIVE_DIR, FINAL_DIR
 from interface.audio_handler import AudioHandler
 from interface.text_handler import TextHandler
 
