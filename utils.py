@@ -23,7 +23,6 @@ def convert_to_wav(input_path:str, output_path:str):
         subprocess.run(ffmpeg_conversion_command,check=True)
         
 def move_to_archive(file_path:Path, archive_dir:Path):
-        archive_dir.mkdir(parents=True,exist_ok=True)
         final_path = archive_dir / file_path.name 
         shutil.move(str(file_path), str(final_path))
 
@@ -38,5 +37,4 @@ def transcribe_audio(wav_path:Path, output_path:Path):
         ]
         print(f"Transcribing with whisper.cpp: {wav_path.name}")
         subprocess.run(whisper_cpp_command, check=True)
-        wav_path.unlink(missing_ok=True)
-        return output_path # This my problem line - .with_suffix(".txt")
+        return output_path

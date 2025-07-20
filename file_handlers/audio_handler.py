@@ -39,7 +39,6 @@ class AudioHandler(FileSystemEventHandler):
     def handle_file(self,file_path):
         path = Path(file_path)
         if not self.should_process(path):
-            # print(f"file is not in accepted audio format: {self.audio_extensions}")
             print(str(path.suffix.lower()))
             return 
         
@@ -55,6 +54,7 @@ class AudioHandler(FileSystemEventHandler):
             return
         
         wav_path = self.convert_file(path)
+        txt_path = utils.transcribe_audio(wav_path, output_path=TEXT_DIR / path.with_suffix(".txt").name)
+        wav_path.unlink(missing_ok=True)
         utils.move_to_archive(path, ARCHIVE_DIR)
-        txt_path = utils.transcribe_audio(wav_path, TEXT_DIR / path.with_suffix(".txt").name)
-        return txt_path # Currently unused, I believe
+        return txt_path 
