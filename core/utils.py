@@ -54,7 +54,7 @@ def chunk_text(text:str):
         chunks.append(chunk_text)
     return chunks
 
-def rewrite_chunk(llm:Llama, chunk: str) -> str:
+def rewrite_chunk(llm:Llama, chunk: str):
     prompt = f"""
     {CLEANUP_USER_PROMPT}
     Transcript chunk:

@@ -1,9 +1,26 @@
-transcript-env/
-file_folders/
+# Python cache/compiled files
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+transcript-env/
+
+# OS / editor cruft
 .DS_Store
-.env
-.log
-.tmp
-final/
-.vscode
+Thumbs.db
+
+# Credentials and tokens (never commit secrets)
+config/credentials.json
+config/token.pickle
+config/transcripts-and-summaries-*.json
+
+# Local data / generated artifacts
+file_folders/audio file archive/
+file_folders/txt files/
+file_folders/final/
+
+# Logs and temp files
+*.log
+*.tmp
