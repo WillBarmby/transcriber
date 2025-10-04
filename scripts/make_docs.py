@@ -5,11 +5,10 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import pickle
+from config.paths import TEXT_DIR, FINAL_DIR
 
 # --- CONFIG ---
 BASE_DIR = Path(__file__).resolve().parent.parent
-TRANSCRIPTS_DIR = BASE_DIR / "file_folders" / "txt files"
-SUMMARIES_DIR = BASE_DIR / "file_folders" / "final"
 CREDENTIALS_FILE = BASE_DIR / "config" / "credentials.json"
 TOKEN_FILE = BASE_DIR / "config" / "token.pickle"
 
@@ -59,13 +58,64 @@ def create_doc_in_folder(title, folder_id):
 
 
 def fill_doc(doc_id, title, summary, transcript):
-    requests = [
-        {"insertText": {"location": {"index": 1}, "text": f"{title}\n\n"}},
-        {"insertText": {"location": {"index": 1}, "text": "Summary\n"}},
-        {"insertText": {"location": {"index": 1}, "text": f"{summary}\n\n"}},
-        {"insertText": {"location": {"index": 1}, "text": "Transcription\n"}},
-        {"insertText": {"location": {"index": 1}, "text": f"{transcript}\n"}},
-    ]
+    requests = []
+    doc_end = 1
+
+    def add_text(text):
+        nonlocal doc_end
+        requests.append(
+            {
+                "insertText": {
+                    "endOfSegmentLocation": {"segmentId": ""},
+                    "text": text,
+                }
+            }
+        )
+        start_index = doc_end
+        doc_end += len(text)
+        return start_index, doc_end
+
+    title_start, title_end = add_text(f"{title}\n")
+    requests.append(
+        {
+            "updateParagraphStyle": {
+                "range": {"startIndex": title_start, "endIndex": title_end},
+                "paragraphStyle": {"namedStyleType": "TITLE"},
+                "fields": "namedStyleType",
+            }
+        }
+    )
+
+    add_text("\n")
+
+    summary_start, summary_end = add_text("Summary\n")
+    requests.append(
+        {
+            "updateParagraphStyle": {
+                "range": {"startIndex": summary_start, "endIndex": summary_end},
+                "paragraphStyle": {"namedStyleType": "HEADING_1"},
+                "fields": "namedStyleType",
+            }
+        }
+    )
+
+    add_text(f"{summary}\n\n")
+
+    transcript_heading_start, transcript_heading_end = add_text("Transcript\n")
+    requests.append(
+        {
+            "updateParagraphStyle": {
+                "range": {
+                    "startIndex": transcript_heading_start,
+                    "endIndex": transcript_heading_end,
+                },
+                "paragraphStyle": {"namedStyleType": "HEADING_1"},
+                "fields": "namedStyleType",
+            }
+        }
+    )
+
+    add_text(f"{transcript}\n")
     docs_service.documents().batchUpdate(
         documentId=doc_id, body={"requests": requests}
     ).execute()
@@ -74,8 +124,8 @@ def fill_doc(doc_id, title, summary, transcript):
 
 # --- MAIN WORKFLOW ---
 def main():
-    transcript_files = {f.name: f for f in TRANSCRIPTS_DIR.glob("*.txt")}
-    summary_files = {f.name: f for f in SUMMARIES_DIR.glob("*.txt")}
+    transcript_files = {f.name: f for f in TEXT_DIR.glob("*.txt")}
+    summary_files = {f.name: f for f in FINAL_DIR.glob("*.txt")}
 
     matches = set(transcript_files.keys()) & set(summary_files.keys())
     if not matches:
