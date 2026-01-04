@@ -21,3 +21,4 @@ data/
 # Logs and temp files
 *.log
 *.tmp
+diff.txt
