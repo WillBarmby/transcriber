@@ -1,15 +1,15 @@
 import shutil
-from core.audio import convert_to_wav, transcribe_audio, TranscriptionError
 from pathlib import Path
-from config.paths import FINAL_DIR, TEXT_DIR, ARCHIVE_DIR
-from handlers.base_pipeline_handler import (
-    BasePipelineHandler,
+from transcriber.core.audio import convert_to_wav, transcribe_audio, TranscriptionError
+from transcriber.config.paths import FINAL_DIR, TEXT_DIR, ARCHIVE_DIR
+from transcriber.pipelines.base_pipeline import (
+    BasePipeline,
     ProcessingResult,
     ProcessingStatus,
 )
 
 
-class AudioHandler(BasePipelineHandler):
+class AudioPipeline(BasePipeline):
     extensions = {".mp3", ".wav", ".m4a"}
     prompt: str = "Continue with transcription pipeline?"
 

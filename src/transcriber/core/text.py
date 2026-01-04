@@ -2,7 +2,11 @@ import spacy
 import logging
 from llama_cpp import Llama
 from collections.abc import Iterator
-from core.config import CHUNK_SIZE, CLEANUP_SYSTEM_PROMPT, CLEANUP_USER_PROMPT
+from transcriber.config.settings import (
+    CHUNK_SIZE,
+    CLEANUP_SYSTEM_PROMPT,
+    CLEANUP_USER_PROMPT,
+)
 
 logger = logging.getLogger(__name__)
 nlp = spacy.load("en_core_web_trf")

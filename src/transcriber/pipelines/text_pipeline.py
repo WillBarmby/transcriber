@@ -1,15 +1,15 @@
 from pathlib import Path
 from llama_cpp import Llama
-from config.paths import FINAL_DIR
-from core.text import chunk_text, rewrite_all_chunks
-from handlers.base_pipeline_handler import (
-    BasePipelineHandler,
+from transcriber.config.paths import FINAL_DIR
+from transcriber.core.text import chunk_text, rewrite_all_chunks
+from transcriber.pipelines.base_pipeline import (
+    BasePipeline,
     ProcessingResult,
     ProcessingStatus,
 )
 
 
-class TextHandler(BasePipelineHandler):
+class TextPipeline(BasePipeline):
     extensions = {".txt"}
     prompt = "Put this text file into summarization pipeline?"
 

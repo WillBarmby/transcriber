@@ -31,7 +31,7 @@ class ProcessingResult:
 StrPathLike: TypeAlias = str | bytes | bytearray | memoryview
 
 
-class BasePipelineHandler(FileSystemEventHandler):
+class BasePipeline(FileSystemEventHandler):
     extensions: set[str] = set()
     prompt: str = ""
 

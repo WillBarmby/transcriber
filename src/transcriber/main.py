@@ -1,21 +1,20 @@
-import time
 import logging
-from cli import build_parser
-from handlers.watchers import setup_observers
-from config.paths import TEXT_DIR, ARCHIVE_DIR, FINAL_DIR
-from core.logging_config import set_up_logging
+import time
+from transcriber.core.logging import set_up_logging
+from transcriber.core.cli import parse_args
+from transcriber.pipelines.observers import setup_observers
+from transcriber.config.paths import TEXT_DIR, ARCHIVE_DIR, FINAL_DIR
 
 
 def main(verbose: bool | None = None):
-    parser = build_parser()
-    args = parser.parse_args()
+    args = parse_args()
     if verbose is None:
         verbose = args.verbose
 
     level = logging.DEBUG if verbose else logging.INFO
     set_up_logging(level=level)
 
-    for path in [FINAL_DIR, ARCHIVE_DIR, TEXT_DIR, FINAL_DIR]:
+    for path in [FINAL_DIR, ARCHIVE_DIR, TEXT_DIR]:
         path.mkdir(parents=True, exist_ok=True)
 
     observers = setup_observers()

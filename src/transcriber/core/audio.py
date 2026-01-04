@@ -1,7 +1,7 @@
-from config.paths import WHISPER_CLI_PATH, MODEL_PATH
 import subprocess
-from pathlib import Path
 import logging
+from pathlib import Path
+from transcriber.config.paths import WHISPER_CLI_PATH, MODEL_PATH
 
 logger = logging.getLogger(__name__)
 
