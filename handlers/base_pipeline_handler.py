@@ -58,8 +58,8 @@ class BasePipelineHandler(FileSystemEventHandler):
         if event.is_directory:
             return
         path = self._normalize_path(event.src_path)
-        self.seen_files.add(path)
         if self.should_process(path):
+            self.seen_files.add(path)
             self.process(path)
 
     def move_to_archive(self, file_path: Path, archive_dir: Path):
