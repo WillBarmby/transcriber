@@ -54,4 +54,11 @@ def convert_to_wav(input_path: str, output_path: str):
         "1",
         output_path,
     ]
-    subprocess.run(ffmpeg_conversion_command, check=True)
+    result = subprocess.run(
+        ffmpeg_conversion_command,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg conversion failed: {result.stderr.strip()}")

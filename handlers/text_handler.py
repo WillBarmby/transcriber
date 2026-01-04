@@ -24,17 +24,12 @@ class TextHandler(BasePipelineHandler):
         try:
             with path.open() as f:
                 text = f.read()
-        except Exception as e:
-            return ProcessingResult(
-                status=ProcessingStatus.FAILED, input_path=path, error=e
-            )
-
-        try:
             chunks = chunk_text(text)
         except Exception as e:
             return ProcessingResult(
                 status=ProcessingStatus.FAILED, input_path=path, error=e
             )
+
         if not chunks:
             return ProcessingResult(
                 status=ProcessingStatus.FAILED,

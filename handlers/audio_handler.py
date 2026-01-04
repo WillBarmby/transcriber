@@ -16,12 +16,6 @@ class AudioHandler(BasePipelineHandler):
     def process(self, path: Path) -> ProcessingResult:
         try:
             wav_path = self.convert_file(path)
-        except Exception as e:
-            return ProcessingResult(
-                status=ProcessingStatus.FAILED, input_path=path, error=e
-            )
-
-        try:
             txt_path = transcribe_audio(
                 wav_path=wav_path, output_path=TEXT_DIR / path.with_suffix(".txt").name
             )

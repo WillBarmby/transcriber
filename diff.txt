@@ -1,0 +1,57 @@
+diff --git a/core/audio.py b/core/audio.py
+index f5e7960..0506a96 100644
+--- a/core/audio.py
++++ b/core/audio.py
+@@ -54,4 +54,11 @@ def convert_to_wav(input_path: str, output_path: str):
+         "1",
+         output_path,
+     ]
+-    subprocess.run(ffmpeg_conversion_command, check=True)
++    result = subprocess.run(
++        ffmpeg_conversion_command,
++        stdout=subprocess.DEVNULL,
++        stderr=subprocess.PIPE,
++        text=True,
++    )
++    if result.returncode != 0:
++        raise RuntimeError(f"ffmpeg conversion failed: {result.stderr.strip()}")
+diff --git a/handlers/audio_handler.py b/handlers/audio_handler.py
+index 10721de..6a8b0a2 100644
+--- a/handlers/audio_handler.py
++++ b/handlers/audio_handler.py
+@@ -16,12 +16,6 @@ class AudioHandler(BasePipelineHandler):
+     def process(self, path: Path) -> ProcessingResult:
+         try:
+             wav_path = self.convert_file(path)
+-        except Exception as e:
+-            return ProcessingResult(
+-                status=ProcessingStatus.FAILED, input_path=path, error=e
+-            )
+-
+-        try:
+             txt_path = transcribe_audio(
+                 wav_path=wav_path, output_path=TEXT_DIR / path.with_suffix(".txt").name
+             )
+diff --git a/handlers/text_handler.py b/handlers/text_handler.py
+index e183b54..f2be063 100644
+--- a/handlers/text_handler.py
++++ b/handlers/text_handler.py
+@@ -24,17 +24,12 @@ class TextHandler(BasePipelineHandler):
+         try:
+             with path.open() as f:
+                 text = f.read()
+-        except Exception as e:
+-            return ProcessingResult(
+-                status=ProcessingStatus.FAILED, input_path=path, error=e
+-            )
+-
+-        try:
+             chunks = chunk_text(text)
+         except Exception as e:
+             return ProcessingResult(
+                 status=ProcessingStatus.FAILED, input_path=path, error=e
+             )
++
+         if not chunks:
+             return ProcessingResult(
+                 status=ProcessingStatus.FAILED,
