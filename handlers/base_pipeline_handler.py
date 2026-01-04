@@ -1,11 +1,11 @@
 import subprocess
-from pathlib import Path
-from watchdog.events import FileSystemEventHandler
-from typing import TypeAlias
 import shutil
-
+import logging
+from pathlib import Path
+from typing import TypeAlias
 from dataclasses import dataclass
 from enum import Enum, auto
+from watchdog.events import FileSystemEventHandler
 
 
 class ProcessingStatus(Enum):
@@ -38,6 +38,7 @@ class BasePipelineHandler(FileSystemEventHandler):
     def __init__(self, watched_folder):
         self.seen_files: set[Path] = set()
         self.watched_folder = watched_folder
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     # methods that could trigger when file is added
     def on_created(self, event):
@@ -64,13 +65,15 @@ class BasePipelineHandler(FileSystemEventHandler):
 
     def handle_result(self, result: ProcessingResult):
         if result.status is ProcessingStatus.SUCCESS:
-            print(f"Successfully Processed {result.input_path.name}")
+            self.logger.info("Successfully processed %s", result.input_path.name)
             return
         if result.status is ProcessingStatus.SKIPPED:
-            print(f"Skipped {result.input_path.name}")
+            self.logger.info("Skipped %s", result.input_path.name)
             return
         if result.status is ProcessingStatus.FAILED:
-            print(f"Failed to process {result.input_path.name}: {result.error}")
+            self.logger.error(
+                "Failed to process %s: %s", result.input_path.name, result.error
+            )
             return
 
         raise RuntimeError(f"Unhandled ProcessingResult status: {result.status}")
@@ -90,7 +93,7 @@ class BasePipelineHandler(FileSystemEventHandler):
             text=True,
         )
         if "button returned:No" in result.stdout:
-            print("User Declined to move file through pipeline")
+            self.logger.info("User declined to move file through pipeline")
             return False
         return True
 

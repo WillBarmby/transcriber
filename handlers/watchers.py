@@ -1,8 +1,11 @@
-from config.paths import INPUT_DIR, TEXT_DIR, LLAMA_MODEL_PATH
+import logging
+from llama_cpp import Llama
 from watchdog.observers import Observer
+from config.paths import INPUT_DIR, TEXT_DIR, LLAMA_MODEL_PATH
 from handlers.audio_handler import AudioHandler
 from handlers.text_handler import TextHandler
-from llama_cpp import Llama
+
+logger = logging.getLogger(__name__)
 
 
 def setup_obervers():
@@ -15,16 +18,11 @@ def setup_obervers():
     text_event_handler = TextHandler(TEXT_DIR, llm=llm)
     audio_observer.schedule(audio_event_handler, str(INPUT_DIR), recursive=False)
     text_observer.schedule(text_event_handler, str(TEXT_DIR), recursive=False)
-
-    print(
-        str(
-            f"The audio event handler is now watching {audio_event_handler.watched_folder}"
-        )
+    logger.info(
+        "The audio event handler is now watching %s", audio_event_handler.watched_folder
     )
-    print(
-        str(
-            f"The text event handler is now watching {text_event_handler.watched_folder}"
-        )
+    logger.info(
+        "The audio event handler is now watching %s", text_event_handler.watched_folder
     )
     return [audio_observer, text_observer]
 

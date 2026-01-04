@@ -1,6 +1,9 @@
 from config.paths import WHISPER_CLI_PATH, MODEL_PATH
 import subprocess
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class TranscriptionError(Exception):
@@ -24,7 +27,9 @@ def transcribe_audio(wav_path: Path, output_path: Path):
         "-of",
         str(base_path),
     ]
-    print(f"Transcribing with whisper.cpp: {wav_path.name}")
+
+    logger.info("Transcribing with whisper.cpp: %s", wav_path.name)
+
     result = subprocess.run(
         whisper_cpp_command,
         stdout=None,

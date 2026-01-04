@@ -1,8 +1,10 @@
-from core.config import CHUNK_SIZE, CLEANUP_SYSTEM_PROMPT, CLEANUP_USER_PROMPT
-from llama_cpp import Llama, CreateChatCompletionResponse
-from collections.abc import Iterator
 import spacy
+import logging
+from llama_cpp import Llama
+from collections.abc import Iterator
+from core.config import CHUNK_SIZE, CLEANUP_SYSTEM_PROMPT, CLEANUP_USER_PROMPT
 
+logger = logging.getLogger(__name__)
 nlp = spacy.load("en_core_web_trf")
 
 
@@ -43,7 +45,7 @@ def rewrite_chunk(llm: Llama, chunk: str) -> str:
 def rewrite_all_chunks(chunks: list[str], llm: Llama) -> list[str]:
     new_chunks = []
     for index, chunk in enumerate(chunks):
-        print(f"Rewriting chunk number: {index + 1}")
+        logger.debug("Rewriting chunk %d/%d", index + 1, len(chunks))
         rewritten_chunk = rewrite_chunk(llm=llm, chunk=chunk)
         new_chunks.append(rewritten_chunk)
     return new_chunks

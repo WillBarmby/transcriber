@@ -56,7 +56,7 @@ class TextHandler(BasePipelineHandler):
         assert final_path.exists()
         assert final_path.stat().st_size > 0
 
-        print(f"[TextHandler] Finished processing {path.name} → {final_path}")
+        self.logger.info("Finished processing %s → %s", path.name, final_path)
 
         result = ProcessingResult(
             status=ProcessingStatus.SUCCESS,

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-import os
+import pickle
+import logging
 from pathlib import Path
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-import pickle
 from config.paths import TEXT_DIR, FINAL_DIR
+
+logger = logging.getLogger(__name__)
 
 # --- CONFIG ---
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -30,7 +32,9 @@ def get_creds():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_FILE), SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(
+                str(CREDENTIALS_FILE), SCOPES
+            )
             creds = flow.run_local_server(port=0)
         with open(TOKEN_FILE, "wb") as token:
             pickle.dump(creds, token)
@@ -49,11 +53,15 @@ def create_doc_in_folder(title, folder_id):
         "mimeType": "application/vnd.google-apps.document",
         "parents": [folder_id],
     }
-    file = drive_service.files().create(
-        body=file_metadata,
-        fields="id",
-        supportsAllDrives=True,
-    ).execute()
+    file = (
+        drive_service.files()
+        .create(
+            body=file_metadata,
+            fields="id",
+            supportsAllDrives=True,
+        )
+        .execute()
+    )
     return file["id"]
 
 
@@ -129,7 +137,7 @@ def main():
 
     matches = set(transcript_files.keys()) & set(summary_files.keys())
     if not matches:
-        print("No matching transcript/summary pairs found.")
+        logger.debug("No matching transcript/summary pairs found.")
         return
 
     for fname in sorted(matches):
@@ -141,7 +149,7 @@ def main():
         title = fname.replace(".txt", "").title()
         doc_id = create_doc_in_folder(title, FOLDER_ID)
         link = fill_doc(doc_id, title, summary, transcript)
-        print(f"[OK] Created doc for {fname}: {link}")
+        logger.info("[OK] Created doc for %s: %s", fname, link)
 
 
 if __name__ == "__main__":
