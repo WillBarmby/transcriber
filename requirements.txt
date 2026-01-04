@@ -1,8 +1,20 @@
+# Core APIs
 google-api-python-client
 google-auth
 google-auth-httplib2
 google-auth-oauthlib
+
+# ML / NLP
+torch
 llama-cpp-python
 spacy
+huggingface-hub
+
+# Utilities
 watchdog
+tqdm
+typer
 fpdf2
+
+# Dev / testing (optional but inferred)
+pytest

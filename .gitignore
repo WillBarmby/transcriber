@@ -5,7 +5,7 @@ __pycache__/
 *.pyd
 
 # Virtual environment
-transcript-env/
+.venv/
 
 # OS / editor cruft
 .DS_Store
@@ -17,6 +17,7 @@ config/token.pickle
 config/transcripts-and-summaries-*.json
 
 # Local data / generated artifacts
+file_folders/
 file_folders/audio file archive/
 file_folders/txt files/
 file_folders/final/
