@@ -30,4 +30,7 @@ class TextHandler(BasePipelineHandler):
             for chunk in new_chunks:
                 file.write(chunk)
                 file.write("\n")
+        assert final_path.exists()
+        assert final_path.stat().st_size > 0
+        print(f"[TextHandler] Finished processing {path.name} → {final_path}")
         return final_path
