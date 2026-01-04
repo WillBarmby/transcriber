@@ -41,15 +41,44 @@ class BasePipelineHandler(FileSystemEventHandler):
 
     # methods that could trigger when file is added
     def on_created(self, event):
-        self.maybe_handle(event)
+        self.handle(event)
 
     def on_moved(self, event):
-        self.maybe_handle(event)
+        self.handle(event)
 
     def on_modified(self, event):
-        self.maybe_handle(event)
+        self.handle(event)
 
-    def ask_user(self) -> bool:
+    def handle(self, event):
+        path: Path = self._normalize_path(event.src_path)
+        can_process = self.check_processability(path)
+
+        if not can_process:
+            return
+
+        self.seen_files.add(path)
+
+        if self.user_confirms():
+            result = self.process(path)
+            self.handle_result(result)
+
+    def handle_result(self, result: ProcessingResult):
+        if result.status is ProcessingStatus.SUCCESS:
+            print(f"Successfully Processed {result.input_path.name}")
+            return
+        if result.status is ProcessingStatus.SKIPPED:
+            print(f"Skipped {result.input_path.name}")
+            return
+        if result.status is ProcessingStatus.FAILED:
+            print(f"Failed to process {result.input_path.name}: {result.error}")
+            return
+
+        raise RuntimeError(f"Unhandled ProcessingResult status: {result.status}")
+
+    def process(self, path: Path) -> ProcessingResult:
+        raise NotImplementedError
+
+    def user_confirms(self) -> bool:
         script = f'display dialog "{self.prompt}" buttons {{"No", "Yes"}} default button "Yes"'
         result = subprocess.run(
             [
@@ -65,26 +94,19 @@ class BasePipelineHandler(FileSystemEventHandler):
             return False
         return True
 
-    def should_process(self, path: Path) -> bool:
-        if path.suffix.lower() in self.extensions and path not in self.seen_files:
-            return self.ask_user()
-        return False
-
-    def process(self, path: Path) -> ProcessingResult:
-        raise NotImplementedError
+    def check_processability(self, path: Path) -> bool:
+        if path.is_dir():
+            return False
+        if path in self.seen_files:
+            return False
+        if path.suffix.lower() not in self.extensions:
+            return False
+        return True
 
     def _normalize_path(self, src_path: StrPathLike) -> Path:
         if isinstance(src_path, bytes | bytearray | memoryview):
             src_path = bytes(src_path).decode(errors="surrogateescape")
         return Path(src_path)
-
-    def maybe_handle(self, event):
-        if event.is_directory:
-            return
-        path = self._normalize_path(event.src_path)
-        if self.should_process(path):
-            self.seen_files.add(path)
-            self.process(path)
 
     def move_to_archive(self, file_path: Path, archive_dir: Path):
         final_path = archive_dir / file_path.name
