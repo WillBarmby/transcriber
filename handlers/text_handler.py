@@ -1,7 +1,7 @@
 from pathlib import Path
 from llama_cpp import Llama
 from config.paths import FINAL_DIR
-from core.utils import chunk_text, rewrite_chunk
+from core.text import chunk_text, rewrite_chunk
 from handlers.base_pipeline_handler import BasePipelineHandler
 
 

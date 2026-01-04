@@ -2,6 +2,7 @@ import subprocess
 from pathlib import Path
 from watchdog.events import FileSystemEventHandler
 from typing import TypeAlias
+import shutil
 
 StrPathLike: TypeAlias = str | bytes | bytearray | memoryview
 
@@ -60,3 +61,7 @@ class BasePipelineHandler(FileSystemEventHandler):
         self.seen_files.add(path)
         if self.should_process(path):
             self.process(path)
+
+    def move_to_archive(self, file_path: Path, archive_dir: Path):
+        final_path = archive_dir / file_path.name
+        shutil.move(str(file_path), str(final_path))

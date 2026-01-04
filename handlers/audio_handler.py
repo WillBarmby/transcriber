@@ -1,5 +1,5 @@
 import shutil
-import core.utils as utils
+from core.audio import convert_to_wav, transcribe_audio, TranscriptionError
 from pathlib import Path
 from config.paths import FINAL_DIR, TEXT_DIR, ARCHIVE_DIR
 from handlers.base_pipeline_handler import BasePipelineHandler
@@ -13,7 +13,7 @@ class AudioHandler(BasePipelineHandler):
         wav_path = FINAL_DIR / path.with_suffix(".wav").name
 
         if path.suffix != ".wav":
-            utils.convert_to_wav(str(path), str(wav_path))
+            convert_to_wav(str(path), str(wav_path))
         else:
             shutil.copy2(str(path), str(wav_path))
         return wav_path
@@ -21,12 +21,12 @@ class AudioHandler(BasePipelineHandler):
     def process(self, path: Path) -> Path | None:
         wav_path = self.convert_file(path)
         try:
-            txt_path = utils.transcribe_audio(
+            txt_path = transcribe_audio(
                 wav_path=wav_path, output_path=TEXT_DIR / path.with_suffix(".txt").name
             )
-        except utils.TranscriptionError as e:
+        except TranscriptionError as e:
             print(f"Transcription Error and stuff: {e}")
             return None
         wav_path.unlink(missing_ok=True)
-        utils.move_to_archive(path, ARCHIVE_DIR)
+        self.move_to_archive(path, ARCHIVE_DIR)
         return txt_path
