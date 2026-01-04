@@ -2,7 +2,9 @@
 CHUNK_SIZE = 80
 
 # Prompts
-CLEANUP_SYSTEM_PROMPT = "You are a helpful assistant cleaning up a transcript for an intelligent reader."
+CLEANUP_SYSTEM_PROMPT = (
+    "You are a helpful assistant cleaning up a transcript for an intelligent reader."
+)
 CLEANUP_USER_PROMPT = """
 Summarize the following transcript chunk. Understand that the speaker or speakers may have rambled and taken a little bit to get to their points.
 Summarize as if your summary were then going to be summarized as part of an overall summary of what was talked about in this audio clip.
