@@ -13,18 +13,6 @@ class AudioHandler(BasePipelineHandler):
     extensions = {".mp3", ".wav", ".m4a"}
     prompt: str = "Continue with transcription pipeline?"
 
-    def convert_file(self, path: Path) -> Path:
-        assert FINAL_DIR.exists()
-        if not path.exists():
-            raise FileNotFoundError(f"{path} does not exist")
-        wav_path = FINAL_DIR / path.with_suffix(".wav").name
-
-        if path.suffix != ".wav":
-            convert_to_wav(str(path), str(wav_path))
-        else:
-            shutil.copy2(str(path), str(wav_path))
-        return wav_path
-
     def process(self, path: Path) -> ProcessingResult:
         try:
             wav_path = self.convert_file(path)
@@ -47,3 +35,15 @@ class AudioHandler(BasePipelineHandler):
         return ProcessingResult(
             status=ProcessingStatus.SUCCESS, input_path=path, output_path=txt_path
         )
+
+    def convert_file(self, path: Path) -> Path:
+        assert FINAL_DIR.exists()
+        if not path.exists():
+            raise FileNotFoundError(f"{path} does not exist")
+        wav_path = FINAL_DIR / path.with_suffix(".wav").name
+
+        if path.suffix != ".wav":
+            convert_to_wav(str(path), str(wav_path))
+        else:
+            shutil.copy2(str(path), str(wav_path))
+        return wav_path
