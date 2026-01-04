@@ -1,3 +1,4 @@
+
 # Python cache/compiled files
 __pycache__/
 *.pyc
@@ -11,16 +12,11 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Credentials and tokens (never commit secrets)
-config/credentials.json
-config/token.pickle
-config/transcripts-and-summaries-*.json
+# Credentials and tokens
+secrets/
 
 # Local data / generated artifacts
-file_folders/
-file_folders/audio file archive/
-file_folders/txt files/
-file_folders/final/
+data/
 
 # Logs and temp files
 *.log
