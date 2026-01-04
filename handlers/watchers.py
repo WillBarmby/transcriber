@@ -8,7 +8,7 @@ from handlers.text_handler import TextHandler
 logger = logging.getLogger(__name__)
 
 
-def setup_obervers():
+def setup_observers():
     audio_observer = Observer()
     text_observer = Observer()
     audio_event_handler = AudioHandler(INPUT_DIR)
@@ -28,4 +28,4 @@ def setup_obervers():
 
 
 if __name__ == "__main__":
-    setup_obervers()
+    setup_observers()

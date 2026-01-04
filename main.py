@@ -1,6 +1,6 @@
 import time
 import logging
-from handlers.watchers import setup_obervers
+from handlers.watchers import setup_observers
 from config.paths import TEXT_DIR, ARCHIVE_DIR, FINAL_DIR
 from core.logging_config import set_up_logging
 
@@ -12,7 +12,7 @@ def main(verbose: bool = False):
     for path in [FINAL_DIR, ARCHIVE_DIR, TEXT_DIR, FINAL_DIR]:
         path.mkdir(parents=True, exist_ok=True)
 
-    observers = setup_obervers()
+    observers = setup_observers()
     for observer in observers:
         observer.start()
     try:
