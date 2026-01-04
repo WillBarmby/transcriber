@@ -22,3 +22,5 @@ data/
 *.log
 *.tmp
 diff.txt
+
+src/transcriber.egg-info/
