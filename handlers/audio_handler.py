@@ -2,14 +2,21 @@ import shutil
 from core.audio import convert_to_wav, transcribe_audio, TranscriptionError
 from pathlib import Path
 from config.paths import FINAL_DIR, TEXT_DIR, ARCHIVE_DIR
-from handlers.base_pipeline_handler import BasePipelineHandler
+from handlers.base_pipeline_handler import (
+    BasePipelineHandler,
+    ProcessingResult,
+    ProcessingStatus,
+)
 
 
 class AudioHandler(BasePipelineHandler):
     extensions = {".mp3", ".wav", ".m4a"}
     prompt: str = "Continue with transcription pipeline?"
 
-    def convert_file(self, path: Path):
+    def convert_file(self, path: Path) -> Path:
+        assert FINAL_DIR.exists()
+        if not path.exists():
+            raise FileNotFoundError(f"{path} does not exist")
         wav_path = FINAL_DIR / path.with_suffix(".wav").name
 
         if path.suffix != ".wav":
@@ -18,15 +25,25 @@ class AudioHandler(BasePipelineHandler):
             shutil.copy2(str(path), str(wav_path))
         return wav_path
 
-    def process(self, path: Path) -> Path | None:
-        wav_path = self.convert_file(path)
+    def process(self, path: Path) -> ProcessingResult:
+        try:
+            wav_path = self.convert_file(path)
+        except Exception as e:
+            return ProcessingResult(
+                status=ProcessingStatus.FAILED, input_path=path, error=e
+            )
+
         try:
             txt_path = transcribe_audio(
                 wav_path=wav_path, output_path=TEXT_DIR / path.with_suffix(".txt").name
             )
         except TranscriptionError as e:
-            print(f"Transcription Error and stuff: {e}")
-            return None
+            return ProcessingResult(
+                status=ProcessingStatus.FAILED, input_path=path, error=e
+            )
+
         wav_path.unlink(missing_ok=True)
         self.move_to_archive(path, ARCHIVE_DIR)
-        return txt_path
+        return ProcessingResult(
+            status=ProcessingStatus.SUCCESS, input_path=path, output_path=txt_path
+        )

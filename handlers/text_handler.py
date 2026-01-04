@@ -1,8 +1,12 @@
 from pathlib import Path
 from llama_cpp import Llama
 from config.paths import FINAL_DIR
-from core.text import chunk_text, rewrite_chunk
-from handlers.base_pipeline_handler import BasePipelineHandler
+from core.text import chunk_text, rewrite_all_chunks
+from handlers.base_pipeline_handler import (
+    BasePipelineHandler,
+    ProcessingResult,
+    ProcessingStatus,
+)
 
 
 class TextHandler(BasePipelineHandler):
@@ -13,18 +17,37 @@ class TextHandler(BasePipelineHandler):
         super().__init__(watched_folder)
         self.llm = llm
 
-    def process(self, path: Path) -> Path:
+    def process(self, path: Path) -> ProcessingResult:
         final_path = FINAL_DIR / path.name
-        with path.open() as f:
-            text = f.read()
-        chunks = chunk_text(text)
+        assert FINAL_DIR.exists()
 
-        new_chunks = []
+        try:
+            with path.open() as f:
+                text = f.read()
+        except Exception as e:
+            return ProcessingResult(
+                status=ProcessingStatus.FAILED, input_path=path, error=e
+            )
 
-        for index, chunk in enumerate(chunks):
-            print(f"Rewriting chunk number: {index + 1}")
-            rewritten_chunk = rewrite_chunk(llm=self.llm, chunk=chunk)
-            new_chunks.append(rewritten_chunk)
+        try:
+            chunks = chunk_text(text)
+        except Exception as e:
+            return ProcessingResult(
+                status=ProcessingStatus.FAILED, input_path=path, error=e
+            )
+        if not chunks:
+            return ProcessingResult(
+                status=ProcessingStatus.FAILED,
+                input_path=path,
+                error=ValueError("chunk_text returned no chunks"),
+            )
+
+        try:
+            new_chunks = rewrite_all_chunks(chunks=chunks, llm=self.llm)
+        except Exception as e:
+            return ProcessingResult(
+                status=ProcessingStatus.FAILED, input_path=path, error=e
+            )
 
         with open(str(final_path), "w") as file:
             for chunk in new_chunks:
@@ -32,5 +55,13 @@ class TextHandler(BasePipelineHandler):
                 file.write("\n")
         assert final_path.exists()
         assert final_path.stat().st_size > 0
+
         print(f"[TextHandler] Finished processing {path.name} → {final_path}")
-        return final_path
+
+        result = ProcessingResult(
+            status=ProcessingStatus.SUCCESS,
+            input_path=path,
+            output_path=final_path,
+            error=None,
+        )
+        return result

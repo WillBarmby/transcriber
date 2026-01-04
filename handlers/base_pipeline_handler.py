@@ -4,6 +4,30 @@ from watchdog.events import FileSystemEventHandler
 from typing import TypeAlias
 import shutil
 
+from dataclasses import dataclass
+from enum import Enum, auto
+
+
+class ProcessingStatus(Enum):
+    SUCCESS = auto()
+    SKIPPED = auto()
+    FAILED = auto()
+
+
+# Intending this to be result of the process method for better error handling and structural soundness
+@dataclass
+class ProcessingResult:
+    status: ProcessingStatus
+    input_path: Path
+    output_path: Path | None = None
+    error: Exception | None = None
+
+    def __post_init__(self):
+        if self.status is ProcessingStatus.SUCCESS:
+            assert self.output_path is not None
+            assert self.error is None
+
+
 StrPathLike: TypeAlias = str | bytes | bytearray | memoryview
 
 
@@ -46,7 +70,7 @@ class BasePipelineHandler(FileSystemEventHandler):
             return self.ask_user()
         return False
 
-    def process(self, path: Path) -> Path | None:
+    def process(self, path: Path) -> ProcessingResult:
         raise NotImplementedError
 
     def _normalize_path(self, src_path: StrPathLike) -> Path:
