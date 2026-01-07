@@ -13,11 +13,11 @@ class TextPipeline(BasePipeline):
     extensions = {".txt"}
     prompt = "Put this text file into summarization pipeline?"
 
-    def __init__(self, watched_folder, llm: Llama):
-        super().__init__(watched_folder)
+    def __init__(self, llm: Llama):
+        super().__init__()
         self.llm = llm
 
-    def process(self, path: Path) -> ProcessingResult:
+    def run_pipeline(self, path: Path) -> ProcessingResult:
         final_path = FINAL_DIR / path.name
         assert FINAL_DIR.exists()
 

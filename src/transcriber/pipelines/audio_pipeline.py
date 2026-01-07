@@ -13,7 +13,7 @@ class AudioPipeline(BasePipeline):
     extensions = {".mp3", ".wav", ".m4a"}
     prompt: str = "Continue with transcription pipeline?"
 
-    def process(self, path: Path) -> ProcessingResult:
+    def run_pipeline(self, path: Path) -> ProcessingResult:
         try:
             wav_path = self.convert_file(path)
             txt_path = transcribe_audio(
@@ -41,3 +41,7 @@ class AudioPipeline(BasePipeline):
         else:
             shutil.copy2(str(path), str(wav_path))
         return wav_path
+
+    def move_to_archive(self, file_path: Path, archive_dir: Path):
+        final_path = archive_dir / file_path.name
+        shutil.move(str(file_path), str(final_path))
