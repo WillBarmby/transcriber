@@ -1,7 +1,7 @@
 from pathlib import Path
 
 # Directories
-BASE_DIR = Path(__file__).resolve().parents[1] / "data"
+BASE_DIR = Path(__file__).resolve().parents[3] / "data"
 INPUT_DIR = Path.home() / "Downloads"
 TEXT_DIR = BASE_DIR / "txt_files"
 FINAL_DIR = BASE_DIR / "final"
