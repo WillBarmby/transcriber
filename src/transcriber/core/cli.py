@@ -26,21 +26,14 @@ def parse_args() -> argparse.Namespace:
         "--quiet", "-q", help="hides debugging log entries", action="store_true"
     )
 
-    parser.add_argument(
-        "--output",
-        "-o",
-        dest="output_dir",
-        type=output_directory,
-        help=f"output directory, default {TEXT_DIR}",
-        default=TEXT_DIR,
-    )
-
     subparser = parser.add_subparsers(dest="command", required=True)
 
     file_parser = subparser.add_parser("file")
     file_parser.add_argument(
         "path", type=Path, help="the path to the audio file to transcribe"
     )
+    add_output_arg(file_parser)
+    add_auto_confirm(file_parser)
 
     batch_parser = subparser.add_parser("batch")
     batch_parser.add_argument(
@@ -48,6 +41,8 @@ def parse_args() -> argparse.Namespace:
         type=directory,
         help="the directory containing the files to transcribe",
     )
+    add_output_arg(batch_parser)
+    add_auto_confirm(batch_parser)
 
     watch_parser = subparser.add_parser("watch")
     watch_parser.add_argument(
@@ -57,5 +52,27 @@ def parse_args() -> argparse.Namespace:
         help="the directory to watch for files to transcribe (default: ~/Downloads)",
         default=Path.home() / "Downloads",
     )
+    add_output_arg(watch_parser)
+    add_auto_confirm(watch_parser)
 
     return parser.parse_args()
+
+
+def add_output_arg(parser):
+    parser.add_argument(
+        "--output",
+        "-o",
+        dest="output_dir",
+        type=output_directory,
+        help=f"output directory, default {TEXT_DIR}",
+        default=TEXT_DIR,
+    )
+
+
+def add_auto_confirm(parser):
+    parser.add_argument(
+        "--autoconfirm",
+        "-ac",
+        help="Skips user confirmation panes",
+        action="store_true",
+    )

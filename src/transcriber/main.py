@@ -52,7 +52,10 @@ def enqueue(q: queue.Queue, item: WorkerItem | Sentinel):
 def run_file_mode(args: argparse.Namespace) -> int:
     path = args.path
     output_dir = ensure_output_dir(args.output_dir)
-    pipeline = AudioPipeline()
+    autoconfirm = args.autoconfirm
+    pipeline = AudioPipeline(
+        output_dir=output_dir, archive_dir=output_dir / "audio_archive"
+    )
 
     logger.info("Running in file mode on %s", path)
     q, worker = start_worker(pipeline, output_dir)
@@ -66,8 +69,11 @@ def run_file_mode(args: argparse.Namespace) -> int:
 
 def run_batch_mode(args: argparse.Namespace) -> int:
     directory: Path = args.directory
-    pipeline = AudioPipeline()
+    autoconfirm = args.autoconfirm
     output_dir = ensure_output_dir(args.output_dir)
+    archive_dir = output_dir / "audio_archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    pipeline = AudioPipeline(output_dir=output_dir, archive_dir=archive_dir)
 
     if not directory.exists():
         logger.error("Inputted directory does not exist: %s", directory)
@@ -96,8 +102,12 @@ def run_batch_mode(args: argparse.Namespace) -> int:
 
 def run_watch_mode(args: argparse.Namespace) -> int:
     directory = args.directory
-    pipeline = AudioPipeline()
     output_dir = ensure_output_dir(args.output_dir)
+    archive_dir = output_dir / "audio_archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    pipeline = AudioPipeline(output_dir=output_dir, archive_dir=archive_dir)
+
+    auto_confirm = args.autoconfirm
 
     logger.info("Running in watch mode on %s", directory)
     q, worker = start_worker(pipeline, output_dir)
@@ -107,7 +117,10 @@ def run_watch_mode(args: argparse.Namespace) -> int:
 
     audio_observer = Observer()
     audio_event_handler = Watcher(
-        extensions=AUDIO_EXTENSIONS, enqueue_fn=enqueue, queue=q
+        extensions=pipeline.extensions,
+        enqueue_fn=enqueue,
+        queue=q,
+        autoconfirm=auto_confirm,
     )
 
     audio_observer.schedule(audio_event_handler, str(directory), recursive=False)
