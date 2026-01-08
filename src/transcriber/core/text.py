@@ -1,4 +1,4 @@
-import spacy
+from spacy.language import Language
 import logging
 from llama_cpp import Llama
 from collections.abc import Iterator
@@ -9,10 +9,9 @@ from transcriber.config.settings import (
 )
 
 logger = logging.getLogger(__name__)
-nlp = spacy.load("en_core_web_trf")
 
 
-def chunk_text(text: str):
+def chunk_text(text: str, nlp: Language):
     doc = nlp(text=text)
     sentences = list(doc.sents)
     chunks = []
