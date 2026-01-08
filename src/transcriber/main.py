@@ -15,7 +15,6 @@ from transcriber.config.paths import FINAL_DIR, TEXT_DIR
 
 
 logger = logging.getLogger(__name__)
-AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a"}
 
 
 def main() -> int:
@@ -50,7 +49,7 @@ def enqueue(q: queue.Queue, item: WorkerItem | Sentinel):
 
 
 def run_file_mode(args: argparse.Namespace) -> int:
-    path = args.path
+    path: Path = args.path
     output_dir = ensure_output_dir(args.output_dir)
     autoconfirm = args.autoconfirm
     pipeline = AudioPipeline(
@@ -91,6 +90,7 @@ def run_batch_mode(args: argparse.Namespace) -> int:
             files_queued = True
     if not files_queued:
         logger.info("No files ending in %s found in %s", pipeline.extensions, directory)
+        worker.join()
         return 0
 
     enqueue(q, STOP)
@@ -111,9 +111,6 @@ def run_watch_mode(args: argparse.Namespace) -> int:
 
     logger.info("Running in watch mode on %s", directory)
     q, worker = start_worker(pipeline, output_dir)
-
-    for path in [directory, FINAL_DIR, ARCHIVE_DIR, TEXT_DIR]:
-        path.mkdir(parents=True, exist_ok=True)
 
     audio_observer = Observer()
     audio_event_handler = Watcher(
