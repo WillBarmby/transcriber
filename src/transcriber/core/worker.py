@@ -10,26 +10,34 @@ class Sentinel:
     pass
 
 
+@dataclass(frozen=True)
+class WorkerItem:
+    input_path: Path
+    autoconfirm: bool = False
+
+
 logger = logging.getLogger(__name__)
 STOP = Sentinel()
 
 
-def worker_loop(queue: Queue, pipeline: BasePipeline, output_dir: Path):
-    seen_files = set()
+def worker_loop(
+    queue: Queue[WorkerItem | Sentinel], pipeline: BasePipeline, output_dir: Path
+):
+    seen_paths: set[Path] = set()
     while True:
         item = queue.get()
-        if item is STOP:
+        if isinstance(item, Sentinel):
             break
-        if item in seen_files:
+
+        if item.input_path in seen_paths:
             continue
-        seen_files.add(item)
-        if not user_confirms():
+        seen_paths.add(item.input_path)
+        if not item.autoconfirm and not user_confirms(item.input_path):
             continue
+        pipeline.process(item.input_path, output_dir)
 
-        pipeline.process(item, output_dir)
 
-
-def user_confirms() -> bool:
+def user_confirms(path: Path) -> bool:
     script = 'display dialog "move through pipeline?" buttons {"No", "Yes"} default button "Yes"'
     result = subprocess.run(
         [
@@ -41,6 +49,7 @@ def user_confirms() -> bool:
         text=True,
     )
     if "button returned:No" in result.stdout:
-        logger.info("User declined to move file through pipeline")
+        logger.info("user declined moving %s through pipeline", path.name)
         return False
+    logger.info("user confirmed moving %s through pipeline", path.name)
     return True

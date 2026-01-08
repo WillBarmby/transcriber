@@ -10,8 +10,8 @@ from transcriber.core.logging import set_up_logging
 from transcriber.core.cli import parse_args
 from transcriber.pipelines.audio_pipeline import AudioPipeline
 from transcriber.core.handlers import Watcher
-from transcriber.core.worker import worker_loop, Sentinel, STOP
-from transcriber.config.paths import FINAL_DIR, TEXT_DIR, ARCHIVE_DIR
+from transcriber.core.worker import worker_loop, Sentinel, STOP, WorkerItem
+from transcriber.config.paths import FINAL_DIR, TEXT_DIR
 
 
 logger = logging.getLogger(__name__)
@@ -38,9 +38,15 @@ def main() -> int:
     return exit_code
 
 
-def enqueue(q: queue.Queue, path: Path | Sentinel):
-    logger.debug("Enqueueing %s", path)
-    q.put(path)
+def enqueue(q: queue.Queue, item: WorkerItem | Sentinel):
+    if isinstance(item, WorkerItem):
+        logger.debug("Enqueueing %s", item.input_path.name)
+    elif isinstance(item, Sentinel):
+        logger.debug("Enqueueing STOP sentinel")
+    else:
+        raise TypeError(f"Unexpected item enqueued: {type(item)!r}")
+
+    q.put(item)
 
 
 def run_file_mode(args: argparse.Namespace) -> int:
@@ -51,7 +57,8 @@ def run_file_mode(args: argparse.Namespace) -> int:
     logger.info("Running in file mode on %s", path)
     q, worker = start_worker(pipeline, output_dir)
 
-    enqueue(q, path)
+    item = WorkerItem(input_path=path, autoconfirm=autoconfirm)
+    enqueue(q, item)
     enqueue(q, STOP)
     worker.join()
     return 0
@@ -73,7 +80,8 @@ def run_batch_mode(args: argparse.Namespace) -> int:
 
     for path in sorted(directory.iterdir()):
         if path.suffix in pipeline.extensions:
-            enqueue(q, path)
+            item = WorkerItem(input_path=path, autoconfirm=autoconfirm)
+            enqueue(q, item)
             files_queued = True
     if not files_queued:
         logger.info("No files ending in %s found in %s", pipeline.extensions, directory)

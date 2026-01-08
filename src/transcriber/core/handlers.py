@@ -1,16 +1,18 @@
 from pathlib import Path
 from typing import TypeAlias
 from watchdog.events import FileSystemEventHandler
+from transcriber.core.worker import WorkerItem
 
 StrPathLike: TypeAlias = str | bytes | bytearray | memoryview
 
 
 class Watcher(FileSystemEventHandler):
-    def __init__(self, extensions, enqueue_fn, queue) -> None:
+    def __init__(self, extensions, enqueue_fn, queue, *, autoconfirm: bool) -> None:
         super().__init__()
         self.extensions = extensions
         self.enqueue = enqueue_fn
         self.queue = queue
+        self.autoconfirm = autoconfirm
 
     def on_created(self, event):
         self.handle(event)
@@ -26,7 +28,8 @@ class Watcher(FileSystemEventHandler):
         can_process = self.check_processability(path)
 
         if can_process:
-            self.enqueue(self.queue, path)
+            item = WorkerItem(input_path=path, autoconfirm=self.autoconfirm)
+            self.enqueue(self.queue, item)
 
     def check_processability(self, path: Path) -> bool:
         if path.is_dir():
