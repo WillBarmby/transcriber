@@ -17,9 +17,9 @@ class TextPipeline(BasePipeline):
         super().__init__()
         self.llm = llm
 
-    def run_pipeline(self, path: Path) -> ProcessingResult:
-        final_path = FINAL_DIR / path.name
-        assert FINAL_DIR.exists()
+    def run_pipeline(self, path: Path, output_dir: Path) -> ProcessingResult:
+        final_path = output_dir / path.name
+        assert output_dir.exists()
 
         try:
             with path.open() as f:

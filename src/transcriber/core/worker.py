@@ -2,7 +2,8 @@ import subprocess
 import logging
 from queue import Queue
 from pathlib import Path
-from transcriber.pipelines.base_pipeline import BasePipeline
+from dataclasses import dataclass
+from transcriber.pipelines.base_pipeline import BasePipeline, ProcessingStatus
 
 
 class Sentinel:
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 STOP = Sentinel()
 
 
-def worker_loop(queue: Queue, pipeline: BasePipeline):
+def worker_loop(queue: Queue, pipeline: BasePipeline, output_dir: Path):
     seen_files = set()
     while True:
         item = queue.get()
@@ -24,7 +25,8 @@ def worker_loop(queue: Queue, pipeline: BasePipeline):
         seen_files.add(item)
         if not user_confirms():
             continue
-        pipeline.process(item)
+
+        pipeline.process(item, output_dir)
 
 
 def user_confirms() -> bool:

@@ -28,8 +28,8 @@ class BasePipeline:
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def process(self, path):
-        result = self.run_pipeline(path)
+    def process(self, path, output_dir: Path):
+        result = self.run_pipeline(path, output_dir)
         self.process_result(result)
 
     def process_result(self, result: ProcessingResult):
@@ -51,5 +51,5 @@ class BasePipeline:
 
         raise RuntimeError(f"Unhandled ProcessingResult status: {result.status}")
 
-    def run_pipeline(self, path: Path) -> ProcessingResult:
+    def run_pipeline(self, path: Path, output_dir: Path) -> ProcessingResult:
         raise NotImplementedError

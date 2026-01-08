@@ -13,11 +13,12 @@ class AudioPipeline(BasePipeline):
     extensions = {".mp3", ".wav", ".m4a"}
     prompt: str = "Continue with transcription pipeline?"
 
-    def run_pipeline(self, path: Path) -> ProcessingResult:
+    def run_pipeline(self, path: Path, output_dir: Path) -> ProcessingResult:
         try:
             wav_path = self.convert_file(path)
             txt_path = transcribe_audio(
-                wav_path=wav_path, output_path=TEXT_DIR / path.with_suffix(".txt").name
+                wav_path=wav_path,
+                output_path=output_dir / path.with_suffix(".txt").name,
             )
         except TranscriptionError as e:
             return ProcessingResult(
