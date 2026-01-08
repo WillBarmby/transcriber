@@ -1,23 +1,38 @@
 import argparse
 from pathlib import Path
+from transcriber.config.paths import TEXT_DIR
 
 
 def directory(value: str) -> Path:
-    try:
-        path_value = Path(value)
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"{value} is not a valid path")
+    path_value = Path(value)
     if path_value.is_dir():
         return path_value
     else:
         raise argparse.ArgumentTypeError(f"{value} is not a valid directory")
 
 
+def output_directory(value: str) -> Path:
+    return Path(value)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
 
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         "--verbose", "-v", help="displays debugging log entries", action="store_true"
+    )
+    group.add_argument(
+        "--quiet", "-q", help="hides debugging log entries", action="store_true"
+    )
+
+    parser.add_argument(
+        "--output",
+        "-o",
+        dest="output_dir",
+        type=output_directory,
+        help=f"output directory, default {TEXT_DIR}",
+        default=TEXT_DIR,
     )
 
     subparser = parser.add_subparsers(dest="command", required=True)
@@ -38,6 +53,7 @@ def parse_args() -> argparse.Namespace:
     watch_parser.add_argument(
         "directory",
         type=directory,
+        nargs="?",
         help="the directory to watch for files to transcribe (default: ~/Downloads)",
         default=Path.home() / "Downloads",
     )
