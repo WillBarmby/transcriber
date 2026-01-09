@@ -1,6 +1,6 @@
 import shutil
 from pathlib import Path
-from transcriber.core.audio import (
+from transcriber.services.audio import (
     convert_to_wav,
     transcribe_audio,
     TranscriptionError,

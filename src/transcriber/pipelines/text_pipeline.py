@@ -3,7 +3,7 @@ from spacy import load
 from spacy.language import Language
 from pathlib import Path
 from llama_cpp import Llama
-from transcriber.core.text import chunk_text, rewrite_all_chunks
+from transcriber.services.text import chunk_text, rewrite_all_chunks
 from transcriber.pipelines.base_pipeline import (
     BasePipeline,
     ProcessingResult,
