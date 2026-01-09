@@ -32,6 +32,11 @@ class ProcessingRequest:
     output_dir: Path
     requested_outputs: frozenset[Artifact]
 
+    def __post_init__(self):
+        if Artifact.COLLATED_FILE in self.requested_outputs:
+            if Artifact.SUMMARY not in self.requested_outputs:
+                raise ValueError("COLLATED_FILE requires SUMMARY in requested_outputs")
+
 
 @dataclass
 class ProcessingResult:
