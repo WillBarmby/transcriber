@@ -10,7 +10,8 @@ from transcriber.core.logging import set_up_logging
 from transcriber.core.cli import parse_args
 from transcriber.pipelines.audio_pipeline import AudioPipeline
 from transcriber.core.handlers import Watcher
-from transcriber.core.worker import worker_loop, Sentinel, STOP, WorkerItem
+from transcriber.core.worker import worker_loop, STOP
+from transcriber.core.types import Sentinel, WorkerItem, Artifact
 from transcriber.config.paths import FINAL_DIR, TEXT_DIR
 
 
@@ -52,6 +53,10 @@ def run_file_mode(args: argparse.Namespace) -> int:
     path: Path = args.path
     output_dir = ensure_output_dir(args.output_dir)
     autoconfirm = args.autoconfirm
+    requested_outputs: frozenset[Artifact] = build_artifacts(
+        transcribe=True, summarize=args.summarize, collate=args.collate
+    )
+
     pipeline = AudioPipeline(
         output_dir=output_dir, archive_dir=output_dir / "audio_archive"
     )
@@ -59,7 +64,9 @@ def run_file_mode(args: argparse.Namespace) -> int:
     logger.info("Running in file mode on %s", path)
     q, worker = start_worker(pipeline, output_dir)
 
-    item = WorkerItem(input_path=path, autoconfirm=autoconfirm)
+    item = WorkerItem(
+        input_path=path, requested_outputs=requested_outputs, autoconfirm=autoconfirm
+    )
     enqueue(q, item)
     enqueue(q, STOP)
     worker.join()
@@ -73,6 +80,9 @@ def run_batch_mode(args: argparse.Namespace) -> int:
     archive_dir = output_dir / "audio_archive"
     archive_dir.mkdir(parents=True, exist_ok=True)
     pipeline = AudioPipeline(output_dir=output_dir, archive_dir=archive_dir)
+    requested_outputs: frozenset[Artifact] = build_artifacts(
+        transcribe=True, summarize=args.summarize, collate=args.collate
+    )
 
     if not directory.exists():
         logger.error("Inputted directory does not exist: %s", directory)
@@ -85,7 +95,11 @@ def run_batch_mode(args: argparse.Namespace) -> int:
 
     for path in sorted(directory.iterdir()):
         if path.suffix in pipeline.extensions:
-            item = WorkerItem(input_path=path, autoconfirm=autoconfirm)
+            item = WorkerItem(
+                input_path=path,
+                requested_outputs=requested_outputs,
+                autoconfirm=autoconfirm,
+            )
             enqueue(q, item)
             files_queued = True
     if not files_queued:
@@ -106,6 +120,9 @@ def run_watch_mode(args: argparse.Namespace) -> int:
     archive_dir = output_dir / "audio_archive"
     archive_dir.mkdir(parents=True, exist_ok=True)
     pipeline = AudioPipeline(output_dir=output_dir, archive_dir=archive_dir)
+    requested_outputs: frozenset[Artifact] = build_artifacts(
+        transcribe=True, summarize=args.summarize, collate=args.collate
+    )
 
     auto_confirm = args.autoconfirm
 
@@ -118,6 +135,7 @@ def run_watch_mode(args: argparse.Namespace) -> int:
         enqueue_fn=enqueue,
         queue=q,
         autoconfirm=auto_confirm,
+        requested_outputs=requested_outputs,
     )
 
     audio_observer.schedule(audio_event_handler, str(directory), recursive=False)
@@ -159,6 +177,19 @@ def ensure_output_dir(path: Path) -> Path:
         logger.info("Output directory did not exist; creating %s", path)
         path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def build_artifacts(
+    transcribe: bool, summarize: bool, collate: bool
+) -> frozenset[Artifact]:
+    artifacts = set()
+    if summarize:
+        artifacts.add(Artifact.SUMMARY)
+    if transcribe:
+        artifacts.add(Artifact.TRANSCRIPT)
+    if collate:
+        artifacts.add(Artifact.COLLATED_FILE)
+    return frozenset(artifacts)
 
 
 if __name__ == "__main__":

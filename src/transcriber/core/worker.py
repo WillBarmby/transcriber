@@ -3,17 +3,8 @@ import logging
 from queue import Queue
 from pathlib import Path
 from dataclasses import dataclass
-from transcriber.pipelines.base_pipeline import BasePipeline, ProcessingStatus
-
-
-class Sentinel:
-    pass
-
-
-@dataclass(frozen=True)
-class WorkerItem:
-    input_path: Path
-    autoconfirm: bool = False
+from transcriber.pipelines.base_pipeline import BasePipeline
+from transcriber.core.types import Artifact, Sentinel, WorkerItem, ProcessingRequest
 
 
 logger = logging.getLogger(__name__)
@@ -32,9 +23,16 @@ def worker_loop(
         if item.input_path in seen_paths:
             continue
         seen_paths.add(item.input_path)
+
         if not item.autoconfirm and not user_confirms(item.input_path):
             continue
-        pipeline.process(item.input_path, output_dir)
+
+        processing_request = ProcessingRequest(
+            input_path=item.input_path,
+            output_dir=output_dir,
+            requested_outputs=item.requested_outputs,
+        )
+        pipeline.process(processing_request)
 
 
 def user_confirms(path: Path) -> bool:

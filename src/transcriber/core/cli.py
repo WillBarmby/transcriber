@@ -59,6 +59,7 @@ def add_command_args(parser):
     add_output_arg(parser)
     add_auto_confirm(parser)
     add_summarize(parser)
+    add_collate(parser)
 
 
 def add_output_arg(parser):
@@ -85,6 +86,15 @@ def add_summarize(parser):
     parser.add_argument(
         "--summarize",
         "-s",
+        help="outputs addtional transcript summary and collated transcript + summary files",
+        action="store_true",
+    )
+
+
+def add_collate(parser):
+    parser.add_argument(
+        "--collate",
+        "-c",
         help="outputs addtional transcript summary and collated transcript + summary files",
         action="store_true",
     )

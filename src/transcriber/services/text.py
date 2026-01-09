@@ -1,3 +1,4 @@
+from pathlib import Path
 from spacy.language import Language
 import logging
 from llama_cpp import Llama
@@ -7,8 +8,50 @@ from transcriber.config.settings import (
     CLEANUP_SYSTEM_PROMPT,
     CLEANUP_USER_PROMPT,
 )
+from transcriber.core.types import ProcessingResult, ProcessingStatus
 
 logger = logging.getLogger(__name__)
+
+
+class SummarizationError(Exception):
+    """Raised during a summarization failure"""
+
+    pass
+
+
+def summarize_file(*, txt_file: Path, final_path: Path, nlp: Language, llm: Llama):
+    if txt_file.suffix != ".txt":
+        raise SummarizationError(f"Expected .txt file, got {txt_file}")
+
+    try:
+        with txt_file.open() as f:
+            text = f.read()
+    except Exception as e:
+        raise SummarizationError(f"Failed to read input file: {txt_file}") from e
+
+    try:
+        chunks = chunk_text(text, nlp)
+    except Exception as e:
+        raise SummarizationError("chunk_text failed") from e
+
+    if not chunks:
+        raise SummarizationError("chunk_text returned no chunks")
+
+    try:
+        new_chunks = rewrite_all_chunks(chunks=chunks, llm=llm)
+    except Exception as e:
+        raise SummarizationError("rewrite_all_chunks failed") from e
+
+    final_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(str(final_path), "w") as file:
+        for chunk in new_chunks:
+            file.write(chunk)
+            file.write("\n")
+
+    assert final_path.exists()
+    assert final_path.stat().st_size > 0
+
+    logger.info("Finished processing %s → %s", txt_file.name, final_path)
 
 
 def chunk_text(text: str, nlp: Language):

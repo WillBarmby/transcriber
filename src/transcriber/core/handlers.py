@@ -2,17 +2,27 @@ from pathlib import Path
 from typing import TypeAlias
 from watchdog.events import FileSystemEventHandler
 from transcriber.core.worker import WorkerItem
+from transcriber.core.types import Artifact
 
 StrPathLike: TypeAlias = str | bytes | bytearray | memoryview
 
 
 class Watcher(FileSystemEventHandler):
-    def __init__(self, extensions, enqueue_fn, queue, *, autoconfirm: bool) -> None:
+    def __init__(
+        self,
+        extensions,
+        enqueue_fn,
+        queue,
+        *,
+        autoconfirm: bool,
+        requested_outputs: frozenset[Artifact]
+    ) -> None:
         super().__init__()
         self.extensions = extensions
         self.enqueue = enqueue_fn
         self.queue = queue
         self.autoconfirm = autoconfirm
+        self.requested_outputs = requested_outputs
 
     def on_created(self, event):
         self.handle(event)
@@ -28,7 +38,11 @@ class Watcher(FileSystemEventHandler):
         can_process = self.check_processability(path)
 
         if can_process:
-            item = WorkerItem(input_path=path, autoconfirm=self.autoconfirm)
+            item = WorkerItem(
+                input_path=path,
+                requested_outputs=self.requested_outputs,
+                autoconfirm=self.autoconfirm,
+            )
             self.enqueue(self.queue, item)
 
     def check_processability(self, path: Path) -> bool:

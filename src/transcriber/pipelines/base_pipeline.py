@@ -1,35 +1,40 @@
 import logging
 from pathlib import Path
-from dataclasses import dataclass
-from enum import Enum, auto
-
-
-class ProcessingStatus(Enum):
-    SUCCESS = auto()
-    SKIPPED = auto()
-    FAILED = auto()
-
-
-@dataclass
-class ProcessingResult:
-    status: ProcessingStatus
-    input_path: Path
-    output_path: Path | None = None
-    error: Exception | None = None
-
-    def __post_init__(self):
-        if self.status is ProcessingStatus.SUCCESS:
-            assert self.output_path is not None
-            assert self.error is None
+from spacy import load
+from llama_cpp import Llama
+from spacy.language import Language
+from transcriber.core.types import ProcessingRequest, ProcessingStatus, ProcessingResult
+from transcriber.config.paths import LLAMA_MODEL_PATH
 
 
 class BasePipeline:
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
+        self._llm: Llama | None = None
+        self._llm_model_path: Path = Path(LLAMA_MODEL_PATH)
+        self._nlp = None
 
-    def process(self, path, output_dir: Path):
-        result = self.run_pipeline(path, output_dir)
+    @property
+    def llm(self) -> Llama:
+        if self._llm is None:
+            self.logger.info("Initialzing LLM from %s", self._llm_model_path)
+            self._llm = Llama(
+                model_path=str(self._llm_model_path),
+                n_ctx=131072,
+                n_gpu_layers=16,
+                verbose=False,
+            )
+        return self._llm
+
+    @property
+    def nlp(self) -> Language:
+        if self._nlp is None:
+            self._nlp = load("en_core_web_trf")
+        return self._nlp
+
+    def process(self, request: ProcessingRequest):  # path, output_dir: Path
+        result = self.run_pipeline(request)
         self.process_result(result)
 
     def process_result(self, result: ProcessingResult):
@@ -51,5 +56,5 @@ class BasePipeline:
 
         raise RuntimeError(f"Unhandled ProcessingResult status: {result.status}")
 
-    def run_pipeline(self, path: Path, output_dir: Path) -> ProcessingResult:
+    def run_pipeline(self, request: ProcessingRequest) -> ProcessingResult:
         raise NotImplementedError
