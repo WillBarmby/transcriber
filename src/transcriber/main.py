@@ -38,21 +38,10 @@ def main() -> int:
     return exit_code
 
 
-def enqueue(q: queue.Queue, item: WorkerItem | Sentinel):
-    if isinstance(item, WorkerItem):
-        logger.debug("Enqueueing %s", item.input_path.name)
-    elif isinstance(item, Sentinel):
-        logger.debug("Enqueueing STOP sentinel")
-    else:
-        raise TypeError(f"Unexpected item enqueued: {type(item)!r}")
-
-    q.put(item)
-
-
 def run_file_mode(args: argparse.Namespace) -> int:
     path: Path = args.path
     output_dir = ensure_output_dir(args.output_dir)
-    autoconfirm = args.autoconfirm
+    autoconfirm = True
     requested_outputs: frozenset[Artifact] = build_artifacts(
         transcribe=True, summarize=args.summarize, collate=args.collate
     )
@@ -170,6 +159,17 @@ def start_worker(
     worker.start()
     logger.debug("Worker thread started")
     return q, worker
+
+
+def enqueue(q: queue.Queue, item: WorkerItem | Sentinel):
+    if isinstance(item, WorkerItem):
+        logger.debug("Enqueueing %s", item.input_path.name)
+    elif isinstance(item, Sentinel):
+        logger.debug("Enqueueing STOP sentinel")
+    else:
+        raise TypeError(f"Unexpected item enqueued: {type(item)!r}")
+
+    q.put(item)
 
 
 def ensure_output_dir(path: Path) -> Path:

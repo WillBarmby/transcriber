@@ -1,0 +1,11 @@
+[paths]
+data_dir = "./data"
+input_dir = "~/Downloads"
+text_dir = "./data/txt_files"
+final_dir = "./data/final"
+archive_dir = "./data/audio_file_archive"
+
+[models]
+whisper_model = "/path/to/whisper/model.bin"
+whisper_cli = "/path/to/whisper-cli"
+llama_model = "/path/to/llama.gguf"

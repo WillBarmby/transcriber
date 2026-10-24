@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-from transcriber.config.paths import TEXT_DIR
+from transcriber.config.paths import BASE_DIR
 
 
 def directory(value: str) -> Path:
@@ -68,8 +68,8 @@ def add_output_arg(parser):
         "-o",
         dest="output_dir",
         type=output_directory,
-        help=f"output directory, default {TEXT_DIR}",
-        default=TEXT_DIR,
+        help=f"output directory, default {BASE_DIR}",
+        default=BASE_DIR,
     )
 
 

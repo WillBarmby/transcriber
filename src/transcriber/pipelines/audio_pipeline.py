@@ -6,7 +6,7 @@ from transcriber.services.audio import (
     transcribe_audio,
     TranscriptionError,
 )
-from transcriber.services.text import SummarizationError, summarize_file
+from transcriber.services.text import SummarizationError
 from transcriber.pipelines.base_pipeline import BasePipeline
 from transcriber.core.types import (
     ProcessingResult,
@@ -20,7 +20,7 @@ from transcriber.config.paths import LLAMA_MODEL_PATH
 class AudioPipeline(BasePipeline):
     def __init__(self, *, output_dir: Path, archive_dir: Path):
         super().__init__()
-        self.extensions = {".mp3", ".wav", ".m4a"}
+        self.extensions = {".mp3", ".wav", ".m4a", ".mp4"}
         self.archive_dir = archive_dir
         self.output_dir = output_dir
 
@@ -32,9 +32,14 @@ class AudioPipeline(BasePipeline):
 
         try:
             wav_path = self.convert_file(path)
+            if Artifact.SUMMARY in requested_output:
+                transcript_dir = output_dir / "transcripts"
+            else:
+                transcript_dir = output_dir
+
             txt_path = transcribe_audio(
                 wav_path=wav_path,
-                output_path=output_dir / path.with_suffix(".txt").name,
+                output_path=transcript_dir / path.with_suffix(".txt").name,
             )
         except TranscriptionError as e:
             return ProcessingResult(
@@ -46,11 +51,6 @@ class AudioPipeline(BasePipeline):
 
         if Artifact.SUMMARY in requested_output:
             from transcriber.services.text import summarize_file
-
-            transcript_dir: Path = output_dir / "transcripts"
-            txt_path = self.move_to_archive(
-                file_path=txt_path, archive_dir=transcript_dir
-            )
 
             summary_path: Path = output_dir / "summaries" / path.name
             summary_path = summary_path.with_suffix(".txt")
@@ -67,6 +67,30 @@ class AudioPipeline(BasePipeline):
                 return ProcessingResult(
                     status=ProcessingStatus.FAILED, input_path=path, error=e
                 )
+            if Artifact.COLLATED_FILE in requested_output:
+                collated_path = output_dir / "collated_files" / path.name
+                collated_path = collated_path.with_suffix(".txt")
+                collated_path.parent.mkdir(parents=True, exist_ok=True)
+
+                with open(summary_path, "r") as summary_file:
+                    summary_text = summary_file.read()
+                with open(txt_path, "r") as txt_file:
+                    transcript_text = txt_file.read()
+
+                with open(collated_path, "w") as collated_file:
+                    content = f"""
+# Transcript Summary
+
+
+{summary_text}
+
+——————————————
+
+# Transcript
+
+{transcript_text}
+                    """
+                    collated_file.write(content)
 
         return ProcessingResult(
             status=ProcessingStatus.SUCCESS, input_path=path, output_path=txt_path
