@@ -1,23 +1,71 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "transcriber"
-version = "0.1.0"
+name = "tranpro"
+version = "0.1.0.dev0"
+description = "A local-first transcript library and one-shot transcription CLI"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Will Barmby" }]
+keywords = ["audio", "cli", "summarization", "transcription"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "Operating System :: MacOS :: MacOS X",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
 dependencies = [
-  "spacy>=3.8",
-  "llama-cpp-python>=0.3",
-  "fpdf2>=2.8",
-  "watchdog>=6.0",
-  "google-api-python-client>=2.0",
+  "platformdirs>=4.3,<5",
+  "typer>=0.15,<1",
 ]
 
+[project.optional-dependencies]
+dev = [
+  "build>=1.2,<2",
+  "mypy>=1.14,<2",
+  "pytest>=8.3,<10",
+  "ruff>=0.9,<1",
+  "twine>=6,<7",
+]
+
+[project.urls]
+Homepage = "https://github.com/WillBarmby/transcriber"
+Issues = "https://github.com/WillBarmby/transcriber/issues"
+Repository = "https://github.com/WillBarmby/transcriber.git"
+
+[project.scripts]
+tp = "tranpro.cli:main"
+
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = { "" = "src" }
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["tranpro*"]
 
-[project.scripts]
-transcriber = "transcriber.main:main"
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+extend-exclude = ["scripts", "src/transcriber"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["tranpro"]
