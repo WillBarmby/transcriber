@@ -25,16 +25,22 @@ classifiers = [
 ]
 dependencies = [
   "platformdirs>=4.3,<5",
+  "rich>=13.8,<16",
+  "Send2Trash>=1.8,<2",
   "typer>=0.15,<1",
 ]
 
 [project.optional-dependencies]
+local = [
+  "parakeet-mlx>=0.6,<0.7; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
 dev = [
   "build>=1.2,<2",
   "mypy>=1.14,<2",
   "pytest>=8.3,<10",
   "ruff>=0.9,<1",
   "twine>=6,<7",
+  "types-Send2Trash>=1.8,<2",
 ]
 
 [project.urls]

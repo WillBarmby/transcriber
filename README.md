@@ -10,11 +10,8 @@ audio -> durable transcript -> optional summary -> optional Google Doc
 The Python distribution and import package are named `tranpro`; the command is
 the shorter `tp`.
 
-> [!IMPORTANT]
-> This branch contains the new application foundation, not the finished
-> transcription pipeline. The old `transcriber` source remains in the repository
-> temporarily while its behavior is replaced in reviewable increments. It is not
-> included in the `tranpro` wheel.
+The current release provides local transcription and the persistent transcript
+library. Summarization and Google Docs publication remain roadmap milestones.
 
 ## Current commands
 
@@ -23,6 +20,14 @@ After installation:
 ```shell
 tp --help
 tp --version
+tp recording.m4a
+tp recording.m4a --output -
+tp recording.m4a --no-save
+tp recording.m4a --retranscribe
+tp 2 --retranscribe
+tp recording.m4a --retranscribe --live
+tp recording.m4a --no-progress
+tp recording.m4a --trash-source
 tp paths
 tp config show
 tp config init
@@ -42,17 +47,26 @@ it does not remove source audio, transcripts, or summaries. Full-text search use
 SQLite FTS5 across timestamped transcript segments and summary sections. See the
 [database design](docs/DATABASE.md) for identity, versioning, and safety details.
 
-The planned one-shot interface will make transcription the default operation and
-summarization explicit:
+Transcription is the default operation. The equivalent explicit form is also
+available:
 
 ```shell
 tp recording.m4a
-tp recording.m4a --summarize
-tp summarize 42 --prompt detailed-notes
+tp transcribe recording.m4a
 ```
 
-Those workflow commands will arrive with the transcription, library, and
-summarization milestones. See [the roadmap](docs/ROADMAP.md).
+By default, tranpro saves a versioned library record and writes
+`recording.transcript.md` beside the source. `--output -` prints Markdown to
+stdout, while `--no-save` skips SQLite. Existing equivalent runs are reused;
+`--retranscribe` creates another immutable version. `--trash-source`/`-d` moves
+the source to the operating-system Trash only after output succeeds.
+Parakeet's `--live` mode prints finalized timestamped sentences as they become
+available while retaining the complete saved library and Markdown outputs.
+Interactive terminals show an animated progress bar by default. `--no-progress`
+disables it; redirected and non-interactive output disables it automatically.
+
+See the [transcription guide](docs/TRANSCRIPTION.md) and
+[roadmap](docs/ROADMAP.md).
 
 ## Development setup
 
@@ -62,9 +76,13 @@ tranpro requires Python 3.11 or newer. From a clone:
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e '.[dev]'
+python -m pip install -e '.[dev,local]'
 tp --version
 ```
+
+The `local` extra installs Parakeet MLX on Apple Silicon. The model downloads to
+the Hugging Face cache on first use. A lightweight install without a local model
+backend remains available with `pip install tranpro`.
 
 Run the same checks used in continuous integration:
 

@@ -8,6 +8,7 @@ from tranpro.library import cli as library_cli
 from tranpro.library.database import Database
 from tranpro.library.models import Segment, SummarySection
 from tranpro.library.repository import LibraryRepository
+from tranpro.library.schema import LATEST_SCHEMA_VERSION
 from tranpro.paths import AppPaths
 
 runner = CliRunner()
@@ -74,7 +75,7 @@ def test_library_init_and_status_use_platform_paths(app_paths: AppPaths) -> None
     status = runner.invoke(cli.app, ["library", "status"])
 
     assert initialized.exit_code == 0
-    assert "Library schema 1 ready" in initialized.stdout
+    assert f"Library schema {LATEST_SCHEMA_VERSION} ready" in initialized.stdout
     assert str(app_paths.database_file) in initialized.stdout
     assert status.exit_code == 0
     assert "Recordings   0" in status.stdout

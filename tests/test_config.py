@@ -19,6 +19,20 @@ def test_load_uses_defaults_without_creating_files(app_paths: AppPaths) -> None:
     assert not app_paths.data_dir.exists()
 
 
+def test_profile_access_and_default_name(app_paths: AppPaths) -> None:
+    config = Config.load(app_paths)
+
+    assert config.default_transcription_profile == "local"
+    assert config.profile("local")["transcription_provider"] == "parakeet-mlx"
+
+
+def test_unknown_profile_lists_available_names(app_paths: AppPaths) -> None:
+    config = Config.load(app_paths)
+
+    with pytest.raises(ConfigError, match="local, openai, whisper"):
+        config.profile("missing")
+
+
 def test_initialize_config_is_idempotent(app_paths: AppPaths) -> None:
     path, created = initialize_config(app_paths)
     original = path.read_text(encoding="utf-8")

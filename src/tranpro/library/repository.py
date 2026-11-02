@@ -15,6 +15,7 @@ from tranpro.library.fingerprint import fingerprint_file
 from tranpro.library.models import (
     LibraryStats,
     Recording,
+    RenderedOutput,
     SearchHit,
     Segment,
     SummaryRun,
@@ -61,7 +62,30 @@ class LibraryRepository:
                 (source_fingerprint,),
             ).fetchone()
             if existing is not None:
-                return self._recording(existing), False
+                connection.execute(
+                    """
+                    UPDATE recordings
+                    SET current_path = ?, file_size_bytes = ?, file_mtime_ns = ?,
+                        duration_ms = coalesce(?, duration_ms),
+                        language = coalesce(?, language), deleted_at = NULL,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        str(source),
+                        stat.st_size,
+                        stat.st_mtime_ns,
+                        duration_ms,
+                        language,
+                        timestamp,
+                        int(existing["id"]),
+                    ),
+                )
+                updated = connection.execute(
+                    "SELECT * FROM recordings WHERE id = ?", (int(existing["id"]),)
+                ).fetchone()
+                assert updated is not None
+                return self._recording(updated), False
 
             cursor = connection.execute(
                 """
@@ -88,6 +112,13 @@ class LibraryRepository:
             ).fetchone()
             assert row is not None
             return self._recording(row), True
+
+    def find_recording_by_fingerprint(self, fingerprint: str) -> Recording | None:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM recordings WHERE fingerprint = ?", (fingerprint,)
+            ).fetchone()
+            return None if row is None else self._recording(row)
 
     def get_recording(
         self, recording_id: int, *, include_deleted: bool = True
@@ -230,6 +261,33 @@ class LibraryRepository:
             ).fetchall()
             return [self._transcript(row) for row in rows]
 
+    def get_segments(self, transcript_id: int) -> list[Segment]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM transcript_segments
+                WHERE transcript_id = ?
+                ORDER BY segment_index
+                """,
+                (transcript_id,),
+            ).fetchall()
+            if not rows:
+                transcript = connection.execute(
+                    "SELECT id FROM transcript_runs WHERE id = ?", (transcript_id,)
+                ).fetchone()
+                if transcript is None:
+                    raise LibraryError(f"Transcript {transcript_id} was not found")
+            return [
+                Segment(
+                    index=int(row["segment_index"]),
+                    start_ms=int(row["start_ms"]),
+                    end_ms=int(row["end_ms"]),
+                    text=str(row["text"]),
+                    speaker=None if row["speaker"] is None else str(row["speaker"]),
+                )
+                for row in rows
+            ]
+
     def add_summary(
         self,
         transcript_id: int,
@@ -312,6 +370,109 @@ class LibraryRepository:
                 (recording_id,),
             ).fetchall()
             return [self._summary(row) for row in rows]
+
+    def record_rendered_output(
+        self,
+        *,
+        recording_id: int,
+        transcript_id: int | None,
+        summary_id: int | None,
+        kind: str,
+        format: str,
+        path: Path,
+        content_hash: str,
+        replace: bool = False,
+    ) -> RenderedOutput:
+        timestamp = now_iso()
+        resolved_path = path.expanduser().resolve()
+        with self.database.connect() as connection:
+            existing = connection.execute(
+                "SELECT * FROM rendered_outputs WHERE path = ?", (str(resolved_path),)
+            ).fetchone()
+            if existing is not None:
+                if (
+                    existing["transcript_id"] == transcript_id
+                    and existing["summary_id"] == summary_id
+                    and existing["content_hash"] == content_hash
+                ):
+                    return self._rendered_output(existing)
+                if replace:
+                    connection.execute(
+                        """
+                        UPDATE rendered_outputs
+                        SET recording_id = ?, transcript_id = ?, summary_id = ?,
+                            kind = ?, format = ?, content_hash = ?, created_at = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            recording_id,
+                            transcript_id,
+                            summary_id,
+                            kind,
+                            format,
+                            content_hash,
+                            timestamp,
+                            int(existing["id"]),
+                        ),
+                    )
+                    updated = connection.execute(
+                        "SELECT * FROM rendered_outputs WHERE id = ?",
+                        (int(existing["id"]),),
+                    ).fetchone()
+                    assert updated is not None
+                    return self._rendered_output(updated)
+                raise LibraryError(f"Output path is already recorded: {resolved_path}")
+            cursor = connection.execute(
+                """
+                INSERT INTO rendered_outputs(
+                    recording_id, transcript_id, summary_id, kind, format,
+                    path, content_hash, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    recording_id,
+                    transcript_id,
+                    summary_id,
+                    kind,
+                    format,
+                    str(resolved_path),
+                    content_hash,
+                    timestamp,
+                ),
+            )
+            assert cursor.lastrowid is not None
+            row = connection.execute(
+                "SELECT * FROM rendered_outputs WHERE id = ?", (cursor.lastrowid,)
+            ).fetchone()
+            assert row is not None
+            return self._rendered_output(row)
+
+    def find_rendered_transcript(self, transcript_id: int) -> RenderedOutput | None:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM rendered_outputs
+                WHERE transcript_id = ? AND kind = 'transcript'
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """,
+                (transcript_id,),
+            ).fetchone()
+            return None if row is None else self._rendered_output(row)
+
+    def mark_source_trashed(self, recording_id: int, original_path: Path) -> None:
+        timestamp = now_iso()
+        with self.database.connect() as connection:
+            self._require_recording(connection, recording_id)
+            connection.execute(
+                """
+                UPDATE recordings
+                SET current_path = NULL, trashed_at = ?, trash_original_path = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (timestamp, str(original_path), timestamp, recording_id),
+            )
 
     def search(
         self,
@@ -444,8 +605,6 @@ class LibraryRepository:
 
     @staticmethod
     def _validate_segments(segments: list[Segment]) -> None:
-        if not segments:
-            raise ValueError("a successful transcript requires at least one segment")
         for expected_index, segment in enumerate(segments):
             if segment.index != expected_index:
                 raise ValueError("segment indexes must be contiguous and start at zero")
@@ -501,5 +660,21 @@ class LibraryRepository:
             provider=str(row["provider"]),
             model=str(row["model"]),
             status=str(row["status"]),
+            created_at=str(row["created_at"]),
+        )
+
+    @staticmethod
+    def _rendered_output(row: sqlite3.Row) -> RenderedOutput:
+        return RenderedOutput(
+            id=int(row["id"]),
+            recording_id=int(row["recording_id"]),
+            transcript_id=(
+                None if row["transcript_id"] is None else int(row["transcript_id"])
+            ),
+            summary_id=None if row["summary_id"] is None else int(row["summary_id"]),
+            kind=str(row["kind"]),
+            format=str(row["format"]),
+            path=Path(row["path"]),
+            content_hash=str(row["content_hash"]),
             created_at=str(row["created_at"]),
         )

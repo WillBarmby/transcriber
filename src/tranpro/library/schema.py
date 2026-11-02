@@ -203,6 +203,26 @@ MIGRATIONS: dict[int, str] = {
             WHERE sr.id = NEW.summary_id;
         END;
     """,
+    2: """
+        CREATE TABLE rendered_outputs (
+            id INTEGER PRIMARY KEY,
+            recording_id INTEGER NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
+            transcript_id INTEGER REFERENCES transcript_runs(id) ON DELETE CASCADE,
+            summary_id INTEGER REFERENCES summary_runs(id) ON DELETE CASCADE,
+            kind TEXT NOT NULL CHECK (kind IN ('transcript', 'summary', 'collated')),
+            format TEXT NOT NULL,
+            path TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            CHECK (transcript_id IS NOT NULL OR summary_id IS NOT NULL),
+            UNIQUE (path)
+        ) STRICT;
+
+        CREATE INDEX rendered_outputs_recording_idx
+            ON rendered_outputs(recording_id, created_at DESC);
+        CREATE INDEX rendered_outputs_transcript_idx
+            ON rendered_outputs(transcript_id, created_at DESC);
+    """,
 }
 
 LATEST_SCHEMA_VERSION = max(MIGRATIONS)

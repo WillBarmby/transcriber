@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from tranpro.library.database import Database, DatabaseError
-from tranpro.library.schema import APPLICATION_ID, LATEST_SCHEMA_VERSION
+from tranpro.library.schema import APPLICATION_ID, LATEST_SCHEMA_VERSION, MIGRATIONS
 from tranpro.paths import AppPaths
 
 
@@ -39,6 +39,7 @@ def test_initialize_creates_current_strict_schema(app_paths: AppPaths) -> None:
         "summary_runs",
         "summary_sections",
         "search_index",
+        "rendered_outputs",
     } <= tables
 
 
@@ -59,6 +60,30 @@ def test_existing_database_is_backed_up_before_migration(app_paths: AppPaths) ->
     with sqlite3.connect(backups[0]) as backup:
         value = backup.execute("SELECT value FROM legacy_marker").fetchone()
         assert value == ("preserved",)
+
+
+def test_version_one_database_is_backed_up_before_output_migration(
+    app_paths: AppPaths,
+) -> None:
+    app_paths.data_dir.mkdir(parents=True)
+    with sqlite3.connect(app_paths.database_file) as connection:
+        connection.executescript(MIGRATIONS[1])
+        connection.execute(
+            "INSERT INTO schema_migrations VALUES (1, '2026-01-01T00:00:00+00:00')"
+        )
+        connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
+        connection.execute("PRAGMA user_version = 1")
+
+    fixed_time = datetime(2026, 11, 2, 4, 5, 6, tzinfo=UTC)
+    Database(app_paths, clock=lambda: fixed_time).initialize()
+
+    backup = app_paths.backup_dir / "library-20261102T040506000000Z-v1.sqlite3"
+    assert backup.is_file()
+    with sqlite3.connect(app_paths.database_file) as connection:
+        table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE name = 'rendered_outputs'"
+        ).fetchone()
+        assert table == ("rendered_outputs",)
 
 
 def test_initialize_refuses_database_from_another_application(
