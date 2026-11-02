@@ -15,10 +15,9 @@ First public alpha.
 - Recording fingerprinting, reuse, full-text search, and recording-ID input.
 - Timestamped Markdown output and recoverable source-file trashing.
 - Provider boundaries for Parakeet MLX and whisper.cpp.
+- Versioned prompts and grounded local or hosted summaries.
+- Optional Google Docs publication with Keychain-backed OAuth.
 
 ### Deferred
 
-- Summarization and saved prompt templates.
-- Hosted OpenAI providers.
-- Google Docs publishing.
 - Speaker diarization.

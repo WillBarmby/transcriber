@@ -51,10 +51,10 @@ behavior.
 
 ## 7. Google Docs publication
 
-- Bring-your-own desktop OAuth credentials and Keychain token storage
-- Polished native Google Docs styles
-- Immutable publication snapshots, reuse, and explicit updates
-- Transcript-only and transcript-plus-summary publication
+- Bring-your-own desktop OAuth credentials and Keychain token storage (implemented)
+- Polished native Google Docs styles (implemented)
+- Immutable publication snapshots, reuse, and explicit updates (implemented)
+- Transcript-only and transcript-plus-summary publication (implemented)
 
 ## 8. Release polish
 

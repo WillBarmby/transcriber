@@ -37,6 +37,7 @@ from tranpro.library.cli import (
 from tranpro.library.database import Database, DatabaseError
 from tranpro.library.repository import LibraryError, LibraryRepository
 from tranpro.paths import AppPaths
+from tranpro.publication.cli import google_app, publish_google_doc
 from tranpro.summarization.cli import prompt_app
 from tranpro.summarization.factory import build_summary_provider
 from tranpro.summarization.ollama import SummarizationError
@@ -163,6 +164,8 @@ config_app = typer.Typer(
 app.add_typer(config_app, name="config")
 app.add_typer(library_app, name="library")
 app.add_typer(prompt_app, name="prompt")
+app.add_typer(google_app, name="google")
+app.command("publish")(publish_google_doc)
 app.command("list")(list_recordings)
 app.command("show")(show_recording)
 app.command("search")(search_library)
