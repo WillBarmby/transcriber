@@ -64,6 +64,19 @@ class SummaryRun:
 
 
 @dataclass(frozen=True, slots=True)
+class RenderedOutput:
+    id: int
+    recording_id: int
+    transcript_id: int | None
+    summary_id: int | None
+    kind: str
+    format: str
+    path: Path
+    content_hash: str
+    created_at: str
+
+
+@dataclass(frozen=True, slots=True)
 class SearchHit:
     kind: str
     recording_id: int

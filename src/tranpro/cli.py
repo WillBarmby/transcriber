@@ -5,8 +5,11 @@ from __future__ import annotations
 import os
 import shlex
 import subprocess
+from pathlib import Path
+from typing import Annotated, Any
 
 import typer
+from typer.core import TyperGroup
 
 from tranpro import __version__
 from tranpro.config import DEFAULT_CONFIG, Config, ConfigError, initialize_config
@@ -19,7 +22,45 @@ from tranpro.library.cli import (
     search_library,
     show_recording,
 )
+from tranpro.library.database import Database, DatabaseError
+from tranpro.library.repository import LibraryError, LibraryRepository
 from tranpro.paths import AppPaths
+from tranpro.transcription.factory import build_provider
+from tranpro.transcription.models import (
+    TranscriptionError,
+    TranscriptionRequest,
+)
+from tranpro.transcription.service import TranscriptionService
+
+_AUDIO_SUFFIXES = {
+    ".aac",
+    ".aiff",
+    ".flac",
+    ".m4a",
+    ".m4b",
+    ".mp3",
+    ".mp4",
+    ".ogg",
+    ".opus",
+    ".wav",
+    ".webm",
+}
+
+
+class DefaultCommandGroup(TyperGroup):
+    """Route path-like first arguments to the transcribe command."""
+
+    def parse_args(self, ctx: Any, args: list[str]) -> list[str]:
+        if args and self._looks_like_source(args[0]):
+            args.insert(0, "transcribe")
+        return super().parse_args(ctx, args)
+
+    def _looks_like_source(self, value: str) -> bool:
+        if value.startswith("-") or value in self.commands:
+            return False
+        path = Path(value).expanduser()
+        return path.exists() or path.suffix.lower() in _AUDIO_SUFFIXES
+
 
 app = typer.Typer(
     name="tp",
@@ -27,6 +68,7 @@ app = typer.Typer(
     no_args_is_help=True,
     pretty_exceptions_enable=False,
     context_settings={"help_option_names": ["-h", "--help"]},
+    cls=DefaultCommandGroup,
 )
 config_app = typer.Typer(
     help="Inspect and edit tranpro configuration.",
@@ -41,6 +83,108 @@ app.command("search")(search_library)
 app.command("forget")(forget_recording)
 app.command("restore")(restore_recording)
 app.command("open")(open_recording)
+
+
+@app.command("transcribe")
+def transcribe(
+    source: Annotated[Path, typer.Argument(help="Audio or video file to transcribe.")],
+    output: Annotated[
+        str | None,
+        typer.Option("--output", "-o", help="Markdown path, or - for stdout."),
+    ] = None,
+    profile: Annotated[
+        str | None,
+        typer.Option("--profile", help="Named provider profile from config.toml."),
+    ] = None,
+    provider: Annotated[
+        str | None, typer.Option("--provider", help="Override the profile provider.")
+    ] = None,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="Override the provider model or model path."),
+    ] = None,
+    whisper_cli: Annotated[
+        Path | None,
+        typer.Option(
+            "--whisper-cli", help="Path to whisper-cli when using whisper-cpp."
+        ),
+    ] = None,
+    language: Annotated[
+        str | None,
+        typer.Option("--language", help="Language override supported by the provider."),
+    ] = None,
+    no_save: Annotated[
+        bool,
+        typer.Option("--no-save", help="Do not add this run to the SQLite library."),
+    ] = False,
+    retranscribe: Annotated[
+        bool,
+        typer.Option(
+            "--retranscribe", help="Run the model even if an equivalent run exists."
+        ),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Replace an explicitly selected output path."),
+    ] = False,
+    trash_source: Annotated[
+        bool,
+        typer.Option(
+            "--trash-source",
+            "-d",
+            help="Move source to OS Trash after every requested output succeeds.",
+        ),
+    ] = False,
+) -> None:
+    """Transcribe one recording; this is also the default tp action."""
+
+    paths = AppPaths.for_user()
+    try:
+        config = Config.load(paths)
+        profile_name = profile or config.default_transcription_profile
+        profile_values = config.profile(profile_name)
+        selected_provider = build_provider(
+            profile_values,
+            provider_override=provider,
+            model_override=model,
+            whisper_cli_override=whisper_cli,
+            language_override=language,
+        )
+        service = TranscriptionService(
+            provider=selected_provider,
+            repository=LibraryRepository(Database(paths)),
+        )
+        output_path = None
+        if output is not None and output != "-":
+            output_path = Path(output)
+        request = TranscriptionRequest(
+            source=source,
+            output=output_path,
+            output_to_stdout=output == "-",
+            save=not no_save,
+            retranscribe=retranscribe,
+            force=force,
+            trash_source=trash_source,
+        )
+        outcome = service.run(request)
+        if request.output_to_stdout:
+            typer.echo(outcome.markdown, nl=False)
+        elif outcome.output_path is not None:
+            action = "Reused" if outcome.reused else "Created"
+            typer.echo(f"{action} transcript {outcome.transcript_id or 'unsaved'}")
+            typer.echo(f"Markdown: {outcome.output_path}")
+        service.finalize_trash(outcome)
+        if trash_source:
+            typer.echo(f"Moved source to Trash: {outcome.source}", err=True)
+    except (
+        ConfigError,
+        DatabaseError,
+        LibraryError,
+        TranscriptionError,
+        OSError,
+    ) as error:
+        typer.echo(f"Error: {error}", err=True)
+        raise typer.Exit(code=1) from error
 
 
 def version_callback(value: bool) -> None:

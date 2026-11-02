@@ -36,6 +36,22 @@ def test_register_recording_deduplicates_by_content(
     assert len(repository.list_recordings()) == 1
 
 
+def test_reregistering_forgotten_content_restores_and_updates_path(
+    repository: LibraryRepository, recording_path: Path, tmp_path: Path
+) -> None:
+    recording, _ = repository.register_recording(recording_path)
+    repository.forget(recording.id)
+    moved = tmp_path / "moved.m4a"
+    recording_path.rename(moved)
+
+    restored, created = repository.register_recording(moved)
+
+    assert created is False
+    assert restored.id == recording.id
+    assert restored.deleted_at is None
+    assert restored.current_path == moved
+
+
 def test_transcripts_are_versioned_and_exact_settings_are_reusable(
     repository: LibraryRepository, recording_path: Path
 ) -> None:
@@ -148,6 +164,22 @@ def test_failed_segment_validation_does_not_create_a_run(
         )
 
     assert repository.list_transcripts(recording.id) == []
+
+
+def test_empty_transcript_is_a_valid_successful_run(
+    repository: LibraryRepository, recording_path: Path
+) -> None:
+    recording, _ = repository.register_recording(recording_path)
+
+    transcript = repository.add_transcript(
+        recording.id,
+        provider="test",
+        model="silence",
+        segments=[],
+    )
+
+    assert transcript.status == "succeeded"
+    assert repository.get_segments(transcript.id) == []
 
 
 def test_missing_recording_has_domain_error(repository: LibraryRepository) -> None:
