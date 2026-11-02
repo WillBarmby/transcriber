@@ -33,6 +33,10 @@ class AppPaths:
     def backup_dir(self) -> Path:
         return self.data_dir / "backups"
 
+    @property
+    def google_credentials_file(self) -> Path:
+        return self.data_dir / "google-oauth-client.json"
+
     def create_private_directories(self) -> None:
         """Create directories needed for application-owned state."""
 
