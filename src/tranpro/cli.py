@@ -5,10 +5,22 @@ from __future__ import annotations
 import os
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 from typing import Annotated, Any
 
 import typer
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskID,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 from typer.core import TyperGroup
 
 from tranpro import __version__
@@ -65,6 +77,67 @@ class DefaultCommandGroup(TyperGroup):
             return False
         path = Path(value).expanduser()
         return path.exists() or path.suffix.lower() in _AUDIO_SUFFIXES
+
+
+class TerminalProgress:
+    """Render provider progress without contaminating stdout pipelines."""
+
+    def __init__(self, *, enabled: bool, console: Console | None = None) -> None:
+        self.enabled = enabled
+        self._progress = Progress(
+            SpinnerColumn("dots"),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+            console=console or Console(stderr=True),
+            transient=False,
+        )
+        self._task_id: TaskID | None = None
+        self._total: float | None = None
+
+    def __enter__(self) -> TerminalProgress:
+        if self.enabled:
+            self._progress.start()
+            self._task_id = self._progress.add_task("Transcribing", total=None)
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        if self.enabled:
+            self._progress.stop()
+
+    def emit(self, event: TranscriptionEvent) -> None:
+        if not self.enabled or self._task_id is None:
+            return
+        if isinstance(event, TranscriptionProgress):
+            total = max(1, event.total_ms)
+            completed = min(total, max(0, event.completed_ms))
+            self._total = total
+            self._progress.update(self._task_id, total=total, completed=completed)
+        elif isinstance(event, TranscriptReplayStarted):
+            self._progress.update(
+                self._task_id,
+                description=f"Reusing transcript {event.transcript_id}",
+                total=1,
+                completed=1,
+            )
+            self._total = 1
+
+    def complete(self, *, reused: bool) -> None:
+        if not self.enabled or self._task_id is None:
+            return
+        total = self._total or 1
+        self._progress.update(
+            self._task_id,
+            description="Reused" if reused else "Transcribed",
+            total=total,
+            completed=total,
+        )
+
+
+def _stderr_is_terminal() -> bool:
+    return sys.stderr.isatty()
 
 
 app = typer.Typer(
@@ -138,6 +211,12 @@ def transcribe(
             "--live", help="Print finalized timestamped segments during transcription."
         ),
     ] = False,
+    no_progress: Annotated[
+        bool,
+        typer.Option(
+            "--no-progress", help="Disable the interactive transcription progress bar."
+        ),
+    ] = False,
     trash_source: Annotated[
         bool,
         typer.Option(
@@ -180,7 +259,15 @@ def transcribe(
             force=force,
             trash_source=trash_source,
         )
-        outcome = service.run(request, emit=_render_live_event if live else None)
+        progress_enabled = not live and not no_progress and _stderr_is_terminal()
+        with TerminalProgress(enabled=progress_enabled) as progress:
+            event_sink = (
+                _render_live_event
+                if live
+                else (progress.emit if progress_enabled else None)
+            )
+            outcome = service.run(request, emit=event_sink)
+            progress.complete(reused=outcome.reused)
         if request.output_to_stdout:
             typer.echo(outcome.markdown, nl=False)
         elif outcome.output_path is not None:

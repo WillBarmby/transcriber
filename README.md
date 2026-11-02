@@ -25,6 +25,7 @@ tp recording.m4a --output -
 tp recording.m4a --no-save
 tp recording.m4a --retranscribe
 tp recording.m4a --retranscribe --live
+tp recording.m4a --no-progress
 tp recording.m4a --trash-source
 tp paths
 tp config show
@@ -60,6 +61,8 @@ stdout, while `--no-save` skips SQLite. Existing equivalent runs are reused;
 the source to the operating-system Trash only after output succeeds.
 Parakeet's `--live` mode prints finalized timestamped sentences as they become
 available while retaining the complete saved library and Markdown outputs.
+Interactive terminals show an animated progress bar by default. `--no-progress`
+disables it; redirected and non-interactive output disables it automatically.
 
 See the [transcription guide](docs/TRANSCRIPTION.md) and
 [roadmap](docs/ROADMAP.md).

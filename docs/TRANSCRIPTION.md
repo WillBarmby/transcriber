@@ -18,6 +18,11 @@ run unless `--retranscribe` is present.
 
 ## Live terminal output
 
+Interactive terminals show a spinner, completion bar, elapsed time, and estimated
+remaining time by default. The animation is written to stderr so `--output -`
+remains safe to pipe. It automatically disappears in non-interactive contexts;
+pass `--no-progress` to disable it explicitly.
+
 Parakeet can print finalized timestamped sentences while it processes a
 recording:
 

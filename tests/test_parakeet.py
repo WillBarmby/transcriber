@@ -17,7 +17,12 @@ class FakeModel:
         self.calls: list[tuple[str, float, float]] = []
 
     def transcribe(
-        self, source: str, *, chunk_duration: float, overlap_duration: float
+        self,
+        source: str,
+        *,
+        chunk_duration: float,
+        overlap_duration: float,
+        chunk_callback: Any = None,
     ) -> Any:
         self.calls.append((source, chunk_duration, overlap_duration))
         return SimpleNamespace(
@@ -76,6 +81,21 @@ def test_parakeet_normalizes_sentences_and_caches_model(tmp_path: Path) -> None:
     ]
     assert first.segments[0].start_ms == 1234
     assert first.duration_ms == 5000
+
+
+def test_parakeet_batch_reports_completion(tmp_path: Path) -> None:
+    source = tmp_path / "audio.m4a"
+    source.write_bytes(b"audio")
+    events: list[TranscriptionEvent] = []
+    provider = ParakeetMLXProvider(loader=lambda model_name: FakeModel())
+
+    provider.transcribe(source, emit=events.append)
+
+    progress = [event for event in events if isinstance(event, TranscriptionProgress)]
+    assert progress == [
+        TranscriptionProgress(completed_ms=0, total_ms=1),
+        TranscriptionProgress(completed_ms=5000, total_ms=5000),
+    ]
 
 
 def test_parakeet_rejects_overlap_larger_than_chunk() -> None:

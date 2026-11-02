@@ -117,15 +117,37 @@ class ParakeetMLXProvider:
     def transcribe(
         self, source: Path, *, emit: TranscriptionEventSink | None = None
     ) -> TranscriptionOutput:
+        progress_total_ms: int | None = None
+
+        def report_chunk(current: int, total: int) -> None:
+            nonlocal progress_total_ms
+            if emit is None or total <= 0:
+                return
+            assert self._model is not None
+            sample_rate = int(self._model.preprocessor_config.sample_rate)
+            chunk_samples = round(self.chunk_duration * sample_rate)
+            progress_total_ms = round(total / sample_rate * 1000)
+            emit(
+                TranscriptionProgress(
+                    completed_ms=round(
+                        max(0, current - chunk_samples) / sample_rate * 1000
+                    ),
+                    total_ms=progress_total_ms,
+                )
+            )
+
         try:
             if self._model is None:
                 self._model = self._loader(self.model_name)
             if self.live:
                 return self._transcribe_streaming(source, emit=emit)
+            if emit is not None:
+                emit(TranscriptionProgress(completed_ms=0, total_ms=1))
             result = self._model.transcribe(
                 str(source),
                 chunk_duration=self.chunk_duration,
                 overlap_duration=self.overlap_duration,
+                chunk_callback=report_chunk,
             )
             sentences = result.sentences
         except TranscriptionError:
@@ -135,6 +157,9 @@ class ParakeetMLXProvider:
 
         segments = self._normalize_sentences(sentences)
         duration_ms = max((segment.end_ms for segment in segments), default=None)
+        if emit is not None:
+            total_ms = progress_total_ms or duration_ms or 1
+            emit(TranscriptionProgress(completed_ms=total_ms, total_ms=total_ms))
         return TranscriptionOutput(tuple(segments), duration_ms=duration_ms)
 
     def _transcribe_streaming(

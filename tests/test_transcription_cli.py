@@ -1,6 +1,8 @@
+from io import StringIO
 from pathlib import Path
 
 import pytest
+from rich.console import Console
 from typer.testing import CliRunner
 
 from tranpro import cli
@@ -10,6 +12,7 @@ from tranpro.transcription.models import (
     ProviderDescriptor,
     TranscriptionEventSink,
     TranscriptionOutput,
+    TranscriptionProgress,
     TranscriptSegmentFinalized,
 )
 
@@ -109,3 +112,29 @@ def test_live_rejects_duplicate_stdout_mode(
 
     assert result.exit_code == 1
     assert "--live cannot be combined with --output -" in result.stderr
+
+
+def test_progress_renderer_shows_completion() -> None:
+    output = StringIO()
+    renderer = cli.TerminalProgress(
+        enabled=True,
+        console=Console(file=output, force_terminal=True, width=100),
+    )
+
+    with renderer:
+        renderer.emit(TranscriptionProgress(completed_ms=500, total_ms=1000))
+        renderer.complete(reused=False)
+
+    rendered = output.getvalue()
+    assert "Transcribed" in rendered
+    assert "100%" in rendered
+
+
+def test_no_progress_option_is_available(app_paths: AppPaths, tmp_path: Path) -> None:
+    source = tmp_path / "recording.wav"
+    source.write_bytes(b"audio")
+
+    result = runner.invoke(cli.app, [str(source), "--no-progress"])
+
+    assert result.exit_code == 0
+    assert "Created transcript 1" in result.stdout
