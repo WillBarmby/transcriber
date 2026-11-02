@@ -10,6 +10,15 @@ import typer
 
 from tranpro import __version__
 from tranpro.config import DEFAULT_CONFIG, Config, ConfigError, initialize_config
+from tranpro.library.cli import (
+    forget_recording,
+    library_app,
+    list_recordings,
+    open_recording,
+    restore_recording,
+    search_library,
+    show_recording,
+)
 from tranpro.paths import AppPaths
 
 app = typer.Typer(
@@ -25,6 +34,13 @@ config_app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 app.add_typer(config_app, name="config")
+app.add_typer(library_app, name="library")
+app.command("list")(list_recordings)
+app.command("show")(show_recording)
+app.command("search")(search_library)
+app.command("forget")(forget_recording)
+app.command("restore")(restore_recording)
+app.command("open")(open_recording)
 
 
 def version_callback(value: bool) -> None:
