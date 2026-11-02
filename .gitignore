@@ -23,8 +23,6 @@ data/
 *.tmp
 diff.txt
 
-src/transcriber.egg-info/
-
 # Packaging output
 build/
 dist/
