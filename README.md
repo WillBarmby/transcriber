@@ -68,6 +68,7 @@ tp google setup --credentials ~/Downloads/client_secret.json
 tp google authorize
 tp publish RECORDING_ID
 tp publish RECORDING_ID --with-summary
+tp publish RECORDING_ID --with-timestamps
 tp publish RECORDING_ID --update
 ```
 
@@ -98,7 +99,9 @@ default, `tp publish ID` creates a transcript-only Doc with native Google styles
 `--with-summary` prepends the latest grounded summary. Exact content is reused,
 and an existing Doc changes only when `--update` is supplied. Bring your own
 Google OAuth Desktop credentials; tranpro stores the refresh token in the macOS
-Keychain. See the [Google Docs guide](docs/GOOGLE_DOCS.md).
+Keychain. Published Docs omit timestamps by default; `--with-timestamps` adds
+them along with summary evidence markers. See the
+[Google Docs guide](docs/GOOGLE_DOCS.md).
 
 Transcription is the default operation. The equivalent explicit form is also
 available:

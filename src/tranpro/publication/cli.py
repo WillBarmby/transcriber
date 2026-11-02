@@ -78,6 +78,13 @@ def publish_google_doc(
         bool,
         typer.Option("--with-summary", help="Include the latest grounded summary."),
     ] = False,
+    with_timestamps: Annotated[
+        bool,
+        typer.Option(
+            "--with-timestamps",
+            help="Include transcript timestamps and summary evidence markers.",
+        ),
+    ] = False,
     update: Annotated[
         bool,
         typer.Option("--update", help="Replace the latest published Doc explicitly."),
@@ -101,6 +108,7 @@ def publish_google_doc(
         ).publish(
             recording_id,
             with_summary=with_summary,
+            with_timestamps=with_timestamps,
             update=update,
             title=title,
             folder_id=folder_id,

@@ -41,13 +41,15 @@ the document title, or place a newly created document in a Drive folder:
 
 ```shell
 tp publish RECORDING_ID --with-summary
+tp publish RECORDING_ID --with-timestamps
 tp publish RECORDING_ID --title "Interview notes"
 tp publish RECORDING_ID --folder GOOGLE_DRIVE_FOLDER_ID
 ```
 
-Transcript timestamps and validated summary evidence references are rendered by
-tranpro after model output. The Google Doc uses native title, subtitle, and
-heading styles, so its outline and formatting remain editable.
+Published Docs omit timestamps for a cleaner reading experience. Pass
+`--with-timestamps` to add transcript timestamps and validated summary evidence
+markers rendered by tranpro after model output. The Google Doc uses native title,
+subtitle, and heading styles, so its outline and formatting remain editable.
 
 Publishing identical content again returns the existing document without a
 network write. To deliberately replace the body of the latest Google Doc and

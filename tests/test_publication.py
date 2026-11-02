@@ -50,7 +50,7 @@ def seeded(tmp_path: Path) -> tuple[LibraryRepository, Path, int]:
     return repository, source, transcript.id
 
 
-def test_document_rendering_uses_native_named_styles() -> None:
+def test_document_rendering_omits_timestamps_by_default() -> None:
     content = render_document(
         source=Path("lecture.mp3"),
         segments=(Segment(0, 5_000, 6_000, "Statement", "Ada"),),
@@ -62,13 +62,29 @@ def test_document_rendering_uses_native_named_styles() -> None:
     requests = google_batch_requests(content)
 
     assert content.title == "lecture"
-    assert "Transcript evidence: 00:05 (s000001)" in content.plain_text
+    assert "Transcript evidence" not in content.plain_text
+    assert "[00:05]" not in content.plain_text
+    assert "Ada: Statement" in content.plain_text
     assert requests[0]["insertText"]["location"] == {"index": 1}  # type: ignore[index]
     styles = [
         request["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]  # type: ignore[index]
         for request in requests[1:]
     ]
     assert styles[:4] == ["TITLE", "SUBTITLE", "HEADING_1", "HEADING_2"]
+
+
+def test_document_rendering_can_include_grounded_timestamps() -> None:
+    content = render_document(
+        source=Path("lecture.mp3"),
+        segments=(Segment(0, 5_000, 6_000, "Statement", "Ada"),),
+        summary_sections=(
+            SummarySection("Key concepts", "Scarcity matters.", ("s000001",)),
+        ),
+        with_timestamps=True,
+    )
+
+    assert "Transcript evidence: 00:05 (s000001)" in content.plain_text
+    assert "[00:05] Ada: Statement" in content.plain_text
 
 
 def test_google_style_indices_count_utf16_code_units() -> None:
@@ -97,6 +113,7 @@ def test_publication_reuses_exact_content_and_updates_only_explicitly(
     assert reused.reused is True
     assert updated.updated is True
     assert len(publisher.created) == 1
+    assert "[00:05]" not in publisher.created[0].plain_text
     assert publisher.replaced[0][0] == "doc-1"
     assert publisher.replaced[0][1].blocks[0].text == "Revised title"
     publications = repository.list_publications(1)

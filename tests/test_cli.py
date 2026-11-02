@@ -55,6 +55,7 @@ def test_google_and_publish_commands_are_discoverable() -> None:
     assert publish.exit_code == 0
     plain_help = re.sub(r"\x1b\[[0-9;]*m", "", publish.stdout)
     assert "--with-summary" in plain_help
+    assert "--with-timestamps" in plain_help
     assert "--update" in plain_help
 
 

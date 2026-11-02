@@ -39,6 +39,7 @@ class PublicationService:
         recording_id: int,
         *,
         with_summary: bool = False,
+        with_timestamps: bool = False,
         update: bool = False,
         title: str | None = None,
         folder_id: str | None = None,
@@ -61,6 +62,7 @@ class PublicationService:
             source=source,
             segments=segments,
             summary_sections=summary_sections,
+            with_timestamps=with_timestamps,
         )
         if title:
             content = DocumentContent(

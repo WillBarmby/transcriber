@@ -14,6 +14,7 @@ def render_document(
     source: Path,
     segments: tuple[Segment, ...],
     summary_sections: tuple[SummarySection, ...] = (),
+    with_timestamps: bool = False,
 ) -> DocumentContent:
     title = source.stem
     blocks = [
@@ -25,19 +26,21 @@ def render_document(
         for section in summary_sections:
             blocks.append(DocumentBlock(section.heading, "HEADING_2"))
             blocks.append(DocumentBlock(section.body))
-            evidence = ", ".join(
-                _evidence(ref, segments) for ref in section.segment_refs
-            )
-            if evidence:
-                blocks.append(DocumentBlock(f"Transcript evidence: {evidence}"))
+            if with_timestamps:
+                evidence = ", ".join(
+                    _evidence(ref, segments) for ref in section.segment_refs
+                )
+                if evidence:
+                    blocks.append(DocumentBlock(f"Transcript evidence: {evidence}"))
     blocks.append(DocumentBlock("Transcript", "HEADING_1"))
     if not segments:
         blocks.append(DocumentBlock("No speech detected."))
     for segment in segments:
-        prefix = f"[{format_timestamp(segment.start_ms)}]"
+        prefix = f"[{format_timestamp(segment.start_ms)}]" if with_timestamps else ""
         if segment.speaker:
-            prefix += f" {segment.speaker}:"
-        blocks.append(DocumentBlock(f"{prefix} {segment.text}"))
+            prefix = f"{prefix} {segment.speaker}:".strip()
+        text = f"{prefix} {segment.text}".strip()
+        blocks.append(DocumentBlock(text))
     return DocumentContent(title=title, blocks=tuple(blocks))
 
 
