@@ -17,8 +17,13 @@ app = typer.Typer(
     help="Local-first transcription and transcript management.",
     no_args_is_help=True,
     pretty_exceptions_enable=False,
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
-config_app = typer.Typer(help="Inspect and edit tranpro configuration.")
+config_app = typer.Typer(
+    help="Inspect and edit tranpro configuration.",
+    invoke_without_command=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 app.add_typer(config_app, name="config")
 
 
@@ -39,6 +44,14 @@ def root(
     ),
 ) -> None:
     """Local-first transcription and transcript management."""
+
+
+@config_app.callback()
+def config_root(context: typer.Context) -> None:
+    """Inspect and edit tranpro configuration."""
+
+    if context.invoked_subcommand is None:
+        typer.echo(context.get_help())
 
 
 @app.command("paths")

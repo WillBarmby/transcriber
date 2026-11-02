@@ -16,6 +16,31 @@ def test_version() -> None:
     assert result.stdout.startswith("tranpro ")
 
 
+def test_short_help_alias() -> None:
+    result = runner.invoke(cli.app, ["-h"])
+
+    assert result.exit_code == 0
+    assert "Local-first transcription" in result.stdout
+    assert "config" in result.stdout
+
+
+def test_config_without_command_shows_help() -> None:
+    result = runner.invoke(cli.app, ["config"])
+
+    assert result.exit_code == 0
+    assert "Inspect and edit tranpro configuration" in result.stdout
+    assert "show" in result.stdout
+    assert "init" in result.stdout
+    assert "edit" in result.stdout
+
+
+def test_config_short_help_alias() -> None:
+    result = runner.invoke(cli.app, ["config", "-h"])
+
+    assert result.exit_code == 0
+    assert "Inspect and edit tranpro configuration" in result.stdout
+
+
 def test_paths_are_displayed_without_creation(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
