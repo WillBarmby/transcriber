@@ -21,6 +21,8 @@ transcription_provider = "parakeet-mlx"
 transcription_model = "mlx-community/parakeet-tdt-0.6b-v3"
 summary_provider = "ollama"
 summary_model = "gemma4:12b"
+summary_context_tokens = 65536
+summary_output_tokens = 4096
 
 [profiles.openai]
 transcription_provider = "openai"
@@ -79,6 +81,16 @@ class Config:
         profile = defaults.get("transcription_profile")
         if not isinstance(profile, str) or not profile:
             raise ConfigError("defaults.transcription_profile must be a profile name")
+        return profile
+
+    @property
+    def default_summary_profile(self) -> str:
+        defaults = self.values.get("defaults")
+        if not isinstance(defaults, dict):
+            raise ConfigError(f"Config has no [defaults] table: {self.path}")
+        profile = defaults.get("summary_profile")
+        if not isinstance(profile, str) or not profile:
+            raise ConfigError("defaults.summary_profile must be a profile name")
         return profile
 
 

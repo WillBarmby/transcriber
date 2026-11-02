@@ -23,7 +23,9 @@ def test_profile_access_and_default_name(app_paths: AppPaths) -> None:
     config = Config.load(app_paths)
 
     assert config.default_transcription_profile == "local"
+    assert config.default_summary_profile == "local"
     assert config.profile("local")["transcription_provider"] == "parakeet-mlx"
+    assert config.profile("local")["summary_context_tokens"] == 65_536
 
 
 def test_unknown_profile_lists_available_names(app_paths: AppPaths) -> None:

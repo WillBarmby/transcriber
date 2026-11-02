@@ -10,9 +10,14 @@ from tranpro.summarization.models import ContextWindow, SummaryRequest, SummaryR
 class SummaryProvider(Protocol):
     """A summary model without SDK-specific types leaking into workflows."""
 
-    name: str
-    model: str
-    context_window: ContextWindow
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def model(self) -> str: ...
+
+    @property
+    def context_window(self) -> ContextWindow: ...
 
     def count_tokens(self, text: str) -> int:
         """Return the provider-specific token count for text."""
