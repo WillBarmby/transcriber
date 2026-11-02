@@ -110,6 +110,7 @@ def show_recording(recording_id: int) -> None:
         recording = repository.get_recording(recording_id)
         transcripts = repository.list_transcripts(recording_id)
         summaries = repository.list_summaries(recording_id)
+        publications = repository.list_publications(recording_id)
     except (DatabaseError, LibraryError, RecordNotFoundError) as error:
         _fail(str(error))
 
@@ -143,6 +144,22 @@ def show_recording(recording_id: int) -> None:
             f"{summary.provider}/{summary.model} {summary.status} "
             f"prompt={summary.prompt_name}@{summary.prompt_version}"
         )
+
+    typer.echo("\nPublications")
+    if not publications:
+        typer.echo("  none")
+    for publication in publications:
+        summary_label = (
+            f" summary #{publication.summary_id}"
+            if publication.summary_id is not None
+            else ""
+        )
+        typer.echo(
+            f"  #{publication.id} transcript #{publication.transcript_id}"
+            f"{summary_label} "
+            f"{publication.provider} {publication.status}"
+        )
+        typer.echo(f"    {publication.remote_url}")
 
 
 def search_library(

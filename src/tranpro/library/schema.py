@@ -256,6 +256,31 @@ MIGRATIONS: dict[int, str] = {
         CREATE INDEX summary_steps_summary_idx
             ON summary_steps(summary_id, step_index);
     """,
+    4: """
+        CREATE TABLE publications (
+            id INTEGER PRIMARY KEY,
+            recording_id INTEGER NOT NULL
+                REFERENCES recordings(id) ON DELETE CASCADE,
+            transcript_id INTEGER NOT NULL
+                REFERENCES transcript_runs(id) ON DELETE CASCADE,
+            summary_id INTEGER REFERENCES summary_runs(id) ON DELETE SET NULL,
+            provider TEXT NOT NULL,
+            remote_id TEXT NOT NULL,
+            remote_url TEXT NOT NULL,
+            title TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            status TEXT NOT NULL CHECK (status IN ('succeeded', 'failed')),
+            error TEXT,
+            created_at TEXT NOT NULL
+        ) STRICT;
+
+        CREATE INDEX publications_recording_idx
+            ON publications(recording_id, created_at DESC);
+        CREATE INDEX publications_remote_idx
+            ON publications(provider, remote_id, created_at DESC);
+        CREATE INDEX publications_content_idx
+            ON publications(provider, content_hash, created_at DESC);
+    """,
 }
 
 LATEST_SCHEMA_VERSION = max(MIGRATIONS)

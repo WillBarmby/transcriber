@@ -15,6 +15,7 @@ from tranpro.library.fingerprint import fingerprint_file
 from tranpro.library.models import (
     LibraryStats,
     PromptTemplate,
+    Publication,
     Recording,
     RenderedOutput,
     SearchHit,
@@ -722,6 +723,140 @@ class LibraryRepository:
             ).fetchall()
             return [self._summary(row) for row in rows]
 
+    def get_latest_successful_summary(self, recording_id: int) -> SummaryRun:
+        with self.database.connect() as connection:
+            self._require_recording(connection, recording_id)
+            row = connection.execute(
+                """
+                SELECT sr.* FROM summary_runs AS sr
+                JOIN transcript_runs AS tr ON tr.id = sr.transcript_id
+                WHERE tr.recording_id = ? AND sr.status = 'succeeded'
+                ORDER BY sr.created_at DESC, sr.id DESC LIMIT 1
+                """,
+                (recording_id,),
+            ).fetchone()
+            if row is None:
+                raise LibraryError(
+                    f"Recording {recording_id} has no successful summary"
+                )
+            return self._summary(row)
+
+    def record_publication(
+        self,
+        *,
+        recording_id: int,
+        transcript_id: int,
+        summary_id: int | None,
+        provider: str,
+        remote_id: str,
+        remote_url: str,
+        title: str,
+        content_hash: str,
+        error: str | None = None,
+    ) -> Publication:
+        timestamp = now_iso()
+        status = "failed" if error else "succeeded"
+        with self.database.connect() as connection:
+            self._require_recording(connection, recording_id)
+            transcript_row = connection.execute(
+                "SELECT recording_id FROM transcript_runs WHERE id = ?",
+                (transcript_id,),
+            ).fetchone()
+            if (
+                transcript_row is None
+                or int(transcript_row["recording_id"]) != recording_id
+            ):
+                raise LibraryError(
+                    f"Transcript {transcript_id} does not belong to recording "
+                    f"{recording_id}"
+                )
+            if summary_id is not None:
+                summary_row = connection.execute(
+                    "SELECT transcript_id FROM summary_runs WHERE id = ?",
+                    (summary_id,),
+                ).fetchone()
+                if (
+                    summary_row is None
+                    or int(summary_row["transcript_id"]) != transcript_id
+                ):
+                    raise LibraryError(
+                        f"Summary {summary_id} does not belong to transcript "
+                        f"{transcript_id}"
+                    )
+            cursor = connection.execute(
+                """
+                INSERT INTO publications(
+                    recording_id, transcript_id, summary_id, provider,
+                    remote_id, remote_url, title, content_hash, status,
+                    error, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    recording_id,
+                    transcript_id,
+                    summary_id,
+                    provider,
+                    remote_id,
+                    remote_url,
+                    title,
+                    content_hash,
+                    status,
+                    error,
+                    timestamp,
+                ),
+            )
+            assert cursor.lastrowid is not None
+            row = connection.execute(
+                "SELECT * FROM publications WHERE id = ?", (cursor.lastrowid,)
+            ).fetchone()
+            assert row is not None
+            return self._publication(row)
+
+    def find_publication_by_content(
+        self, provider: str, content_hash: str
+    ) -> Publication | None:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM publications
+                WHERE provider = ? AND content_hash = ? AND status = 'succeeded'
+                ORDER BY created_at DESC, id DESC LIMIT 1
+                """,
+                (provider, content_hash),
+            ).fetchone()
+            return None if row is None else self._publication(row)
+
+    def get_latest_publication(
+        self, recording_id: int, *, provider: str
+    ) -> Publication:
+        with self.database.connect() as connection:
+            self._require_recording(connection, recording_id)
+            row = connection.execute(
+                """
+                SELECT * FROM publications
+                WHERE recording_id = ? AND provider = ? AND status = 'succeeded'
+                ORDER BY created_at DESC, id DESC LIMIT 1
+                """,
+                (recording_id, provider),
+            ).fetchone()
+            if row is None:
+                raise LibraryError(
+                    f"Recording {recording_id} has no {provider} publication"
+                )
+            return self._publication(row)
+
+    def list_publications(self, recording_id: int) -> list[Publication]:
+        with self.database.connect() as connection:
+            self._require_recording(connection, recording_id)
+            rows = connection.execute(
+                """
+                SELECT * FROM publications WHERE recording_id = ?
+                ORDER BY created_at DESC, id DESC
+                """,
+                (recording_id,),
+            ).fetchall()
+            return [self._publication(row) for row in rows]
+
     def record_rendered_output(
         self,
         *,
@@ -1038,5 +1173,21 @@ class LibraryRepository:
             format=str(row["format"]),
             path=Path(row["path"]),
             content_hash=str(row["content_hash"]),
+            created_at=str(row["created_at"]),
+        )
+
+    @staticmethod
+    def _publication(row: sqlite3.Row) -> Publication:
+        return Publication(
+            id=int(row["id"]),
+            recording_id=int(row["recording_id"]),
+            transcript_id=int(row["transcript_id"]),
+            summary_id=None if row["summary_id"] is None else int(row["summary_id"]),
+            provider=str(row["provider"]),
+            remote_id=str(row["remote_id"]),
+            remote_url=str(row["remote_url"]),
+            title=str(row["title"]),
+            content_hash=str(row["content_hash"]),
+            status=str(row["status"]),
             created_at=str(row["created_at"]),
         )

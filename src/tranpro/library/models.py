@@ -97,6 +97,21 @@ class RenderedOutput:
 
 
 @dataclass(frozen=True, slots=True)
+class Publication:
+    id: int
+    recording_id: int
+    transcript_id: int
+    summary_id: int | None
+    provider: str
+    remote_id: str
+    remote_url: str
+    title: str
+    content_hash: str
+    status: str
+    created_at: str
+
+
+@dataclass(frozen=True, slots=True)
 class SearchHit:
     kind: str
     recording_id: int
