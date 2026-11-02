@@ -50,6 +50,6 @@ Finally, verify the public installation in a fresh virtual environment:
 
 ```shell
 python3 -m venv /tmp/tranpro-release-check
-/tmp/tranpro-release-check/bin/python -m pip install 'tranpro[local]'
+/tmp/tranpro-release-check/bin/python -m pip install tranpro
 /tmp/tranpro-release-check/bin/tp --version
 ```
