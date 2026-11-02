@@ -10,6 +10,11 @@ from tranpro.summarization.ollama import (
     OllamaProvider,
     SummarizationError,
 )
+from tranpro.summarization.openai import (
+    DEFAULT_OPENAI_CONTEXT_TOKENS,
+    DEFAULT_OPENAI_MODEL,
+    OpenAISummaryProvider,
+)
 from tranpro.summarization.provider import SummaryProvider
 
 
@@ -33,8 +38,14 @@ def build_summary_provider(
             output_tokens=_integer(profile, "summary_output_tokens", 4_096),
         )
     if provider_name == "openai":
-        raise SummarizationError(
-            "The OpenAI summary provider is planned for the hosted-provider PR"
+        return OpenAISummaryProvider(
+            model=model or DEFAULT_OPENAI_MODEL,
+            context_tokens=context_override
+            or _integer(
+                profile, "summary_context_tokens", DEFAULT_OPENAI_CONTEXT_TOKENS
+            ),
+            output_tokens=_integer(profile, "summary_output_tokens", 8_192),
+            reasoning_effort=_string(profile, "reasoning_effort") or "none",
         )
     raise SummarizationError(f"Unknown summary provider: {provider_name}")
 

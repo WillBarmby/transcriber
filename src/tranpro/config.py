@@ -29,6 +29,9 @@ transcription_provider = "openai"
 transcription_model = "gpt-transcribe"
 summary_provider = "openai"
 summary_model = "gpt-6.1-terra"
+summary_context_tokens = 272000
+summary_output_tokens = 8192
+reasoning_effort = "none"
 
 [profiles.whisper]
 transcription_provider = "whisper-cpp"

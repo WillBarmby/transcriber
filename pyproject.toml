@@ -24,6 +24,7 @@ classifiers = [
   "Topic :: Multimedia :: Sound/Audio :: Speech",
 ]
 dependencies = [
+  "openai>=2,<3",
   "parakeet-mlx>=0.6,<0.7; sys_platform == 'darwin' and platform_machine == 'arm64'",
   "platformdirs>=4.3,<5",
   "rich>=13.8,<16",
@@ -74,3 +75,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.11"
 strict = true
 packages = ["tranpro"]
+
+[[tool.mypy.overrides]]
+module = ["openai", "openai.*"]
+follow_imports = "skip"

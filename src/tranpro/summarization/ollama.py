@@ -9,42 +9,19 @@ from typing import Any, cast
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from tranpro.library.models import SummarySection
 from tranpro.summarization.models import (
     ContextWindow,
     SummaryRequest,
     SummaryResult,
 )
-from tranpro.summarization.planner import render_segments
+from tranpro.summarization.structured import (
+    SUMMARY_SCHEMA,
+    parse_summary_text,
+    render_summary_request,
+)
 
 DEFAULT_OLLAMA_MODEL = "gemma4:12b"
 DEFAULT_CONTEXT_TOKENS = 65_536
-
-_SUMMARY_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "sections": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "heading": {"type": "string"},
-                    "body": {"type": "string"},
-                    "segment_refs": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "minItems": 1,
-                    },
-                },
-                "required": ["heading", "body", "segment_refs"],
-                "additionalProperties": False,
-            },
-            "minItems": 1,
-        }
-    },
-    "required": ["sections"],
-    "additionalProperties": False,
-}
 
 
 class SummarizationError(RuntimeError):
@@ -81,11 +58,11 @@ class OllamaProvider:
         return max(1, math.ceil(len(text.encode("utf-8")) / 3))
 
     def summarize(self, request: SummaryRequest) -> SummaryResult:
-        user_content = _render_request(request)
+        user_content = render_summary_request(request)
         payload = {
             "model": self.model,
             "stream": False,
-            "format": _SUMMARY_SCHEMA,
+            "format": SUMMARY_SCHEMA,
             "messages": [
                 {"role": "system", "content": request.system_contract},
                 {"role": "user", "content": user_content},
@@ -100,26 +77,11 @@ class OllamaProvider:
         try:
             message = cast(dict[str, Any], response["message"])
             raw_text = str(message["content"])
-            parsed = cast(dict[str, Any], json.loads(raw_text))
-            raw_sections = cast(list[dict[str, Any]], parsed["sections"])
-            sections = tuple(
-                SummarySection(
-                    heading=str(section["heading"]).strip(),
-                    body=str(section["body"]).strip(),
-                    segment_refs=tuple(
-                        str(ref) for ref in cast(list[Any], section["segment_refs"])
-                    ),
-                )
-                for section in raw_sections
-            )
+            sections = parse_summary_text(raw_text)
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             raise SummarizationError(
-                "Ollama returned an invalid structured summary"
+                f"Ollama returned an invalid structured summary: {error}"
             ) from error
-        if not sections or any(not item.heading or not item.body for item in sections):
-            raise SummarizationError("Ollama returned an empty summary section")
-        if any(not item.segment_refs for item in sections):
-            raise SummarizationError("Ollama returned an ungrounded summary section")
         usage: dict[str, int | float] = {}
         for source, destination in (
             ("prompt_eval_count", "input_tokens"),
@@ -163,21 +125,3 @@ class OllamaProvider:
         if not isinstance(decoded, dict):
             raise SummarizationError("Ollama returned an unexpected response")
         return cast(dict[str, Any], decoded)
-
-
-def _render_request(request: SummaryRequest) -> str:
-    if request.source_notes:
-        source = "\n\n".join(
-            f"Partial notes {index + 1}:\n{notes}"
-            for index, notes in enumerate(request.source_notes)
-        )
-        source_label = "Partial notes to synthesize"
-    else:
-        source = render_segments(request.segments)
-        source_label = "Transcript"
-    return (
-        f"{request.instructions}\n\n"
-        "Return valid JSON matching the supplied schema. Preserve only segment "
-        "references that appear in the input.\n\n"
-        f"{source_label}:\n{source}"
-    )
