@@ -1,4 +1,7 @@
-# Transcriber Codebase Overview
+# Legacy Transcriber Codebase Overview
+
+> This document describes the pre-tranpro implementation retained temporarily
+> under `src/transcriber`. It is historical context, not current setup guidance.
 
 ## High-Level Purpose
 Transcriber automates the pipeline for turning newly downloaded audio files into polished summaries. Watchdog observers monitor configured folders, convert audio into text with `whisper.cpp`, optionally run large-language-model cleanup, and deposit the final outputs in archive and summary directories.
