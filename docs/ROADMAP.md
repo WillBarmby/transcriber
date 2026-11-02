@@ -44,9 +44,9 @@ behavior.
 
 ## 6. OpenAI profile
 
-- Hosted transcription with `gpt-transcribe`
-- Hosted summaries with `gpt-6.1-terra`
-- Usage and estimated-cost records
+- Hosted transcription with `gpt-transcribe` (deferred pending an honest timestamp model)
+- Hosted summaries with `gpt-6.1-terra` (implemented on the PR 8 stack)
+- Usage and estimated-cost records (implemented for summaries)
 - Mocked provider tests; no network calls in the test suite
 
 ## 7. Google Docs publication

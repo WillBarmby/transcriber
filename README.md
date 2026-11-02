@@ -50,6 +50,7 @@ tp recording.m4a --trash-source
 tp recording.m4a --summarize
 tp summarize RECORDING_ID
 tp summarize RECORDING_ID --model gemma4:12b
+tp summarize RECORDING_ID --profile openai
 tp paths
 tp config show
 tp config init
@@ -82,6 +83,11 @@ start it, and pull the configured model before the first summary. The default is
 Long transcripts automatically use grounded, auditable multi-pass summarization
 without splitting transcript segments or silently truncating input. See the
 [summarization guide](docs/SUMMARIZATION.md).
+
+The opt-in OpenAI summary profile uses `gpt-6.1-terra` through the Responses API
+with strict structured output, actual token accounting, and an estimated standard
+cost stored per step. Set `OPENAI_API_KEY` and pass `--profile openai`; the key is
+never stored in SQLite or `config.toml`. See the [OpenAI profile guide](docs/OPENAI.md).
 
 Transcription is the default operation. The equivalent explicit form is also
 available:
