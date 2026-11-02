@@ -36,11 +36,11 @@ behavior.
 
 ## 5. Summaries and prompts
 
-- Ollama with Gemma 4 12B as the local default
-- Built-in detailed-notes preset and versioned user prompts
-- Explicit `--summarize` and standalone summarize commands
-- Context feasibility planning and hierarchical fallback
-- Grounded segment references and Markdown rendering
+- Ollama with Gemma 4 12B as the local default (implemented on the PR 6/7 stack)
+- Built-in detailed-notes preset and versioned user prompts (implemented)
+- Explicit `--summarize` and standalone summarize commands (implemented)
+- Context feasibility planning and recursive hierarchical fallback (implemented)
+- Grounded segment references and Markdown rendering (implemented)
 
 ## 6. OpenAI profile
 

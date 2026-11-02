@@ -89,11 +89,12 @@ IDs into timestamps and links after validation, so models never invent display
 timestamps.
 
 The context planner is deterministic and provider-independent. Providers supply
-their exact token counter and effective context window; the planner first tests
-the complete rendered input, then greedily groups contiguous transcript segments
-when a hierarchical pass is required. It rejects a single segment that cannot
-fit instead of silently truncating it. The resulting token counts, limits, and
-segment groups are serializable and stored on the summary run.
+their token counter or conservative estimator and effective context window; the
+planner first tests the complete rendered input, then greedily groups contiguous
+transcript segments when a hierarchical pass is required. It rejects a single
+segment that cannot fit instead of silently truncating it. The resulting token
+counts, limits, and segment groups are serializable and stored on the summary
+run. Provider-reported actual usage is stored on each completed step.
 
 ## Explicit non-goals for version 1
 

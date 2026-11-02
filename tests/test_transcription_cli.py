@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from tranpro import cli
 from tranpro.library.models import Segment
 from tranpro.paths import AppPaths
+from tranpro.summarization.service import SummaryOutcome
 from tranpro.transcription.models import (
     ProviderDescriptor,
     TranscriptionEventSink,
@@ -153,3 +154,48 @@ def test_no_progress_option_is_available(app_paths: AppPaths, tmp_path: Path) ->
 
     assert result.exit_code == 0
     assert "Created transcript 1" in result.stdout
+
+
+def test_transcribe_can_explicitly_continue_to_summary(
+    app_paths: AppPaths, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "recording.wav"
+    source.write_bytes(b"audio")
+    summary_path = tmp_path / "recording.summary.md"
+    summarized: list[int] = []
+
+    def fake_summary(transcript_id: int, **_: object) -> SummaryOutcome:
+        summarized.append(transcript_id)
+        return SummaryOutcome(1, transcript_id, 1, "# Summary\n", summary_path, "whole")
+
+    monkeypatch.setattr(cli, "_summarize_transcript", fake_summary)
+
+    result = runner.invoke(cli.app, [str(source), "--summarize"])
+
+    assert result.exit_code == 0
+    assert summarized == [1]
+    assert "Created summary 1" in result.stdout
+
+
+def test_summarize_requires_saved_transcript(
+    app_paths: AppPaths, tmp_path: Path
+) -> None:
+    source = tmp_path / "recording.wav"
+    source.write_bytes(b"audio")
+
+    result = runner.invoke(cli.app, [str(source), "--no-save", "--summarize"])
+
+    assert result.exit_code == 1
+    assert "--summarize requires a saved transcript" in result.stderr
+
+
+def test_summarize_rejects_transcript_stdout_mode(
+    app_paths: AppPaths, tmp_path: Path
+) -> None:
+    source = tmp_path / "recording.wav"
+    source.write_bytes(b"audio")
+
+    result = runner.invoke(cli.app, [str(source), "--output", "-", "--summarize"])
+
+    assert result.exit_code == 1
+    assert "--summarize cannot be combined with --output -" in result.stderr

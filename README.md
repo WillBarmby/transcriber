@@ -10,8 +10,9 @@ audio -> durable transcript -> optional summary -> optional Google Doc
 The Python distribution and import package are named `tranpro`; the command is
 the shorter `tp`.
 
-The current release provides local transcription and the persistent transcript
-library. Summarization and Google Docs publication remain roadmap milestones.
+The current development branch provides local transcription, the persistent
+transcript library, and explicit local summarization. Google Docs publication
+remains a roadmap milestone.
 
 ## Installation
 
@@ -46,6 +47,9 @@ tp 2 --retranscribe
 tp recording.m4a --retranscribe --live
 tp recording.m4a --no-progress
 tp recording.m4a --trash-source
+tp recording.m4a --summarize
+tp summarize RECORDING_ID
+tp summarize RECORDING_ID --model gemma4:12b
 tp paths
 tp config show
 tp config init
@@ -71,6 +75,13 @@ SQLite FTS5 across timestamped transcript segments and summary sections. See the
 Prompt commands prepare reusable instructions for the upcoming summary workflow.
 Each save creates an immutable version so an old summary can always identify the
 exact instructions that produced it.
+
+Local summaries use Ollama and structured JSON output. Install Ollama separately,
+start it, and pull the configured model before the first summary. The default is
+`gemma4:12b`; model and effective context can be changed per command or profile.
+Long transcripts automatically use grounded, auditable multi-pass summarization
+without splitting transcript segments or silently truncating input. See the
+[summarization guide](docs/SUMMARIZATION.md).
 
 Transcription is the default operation. The equivalent explicit form is also
 available:
