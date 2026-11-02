@@ -55,6 +55,21 @@ def test_path_is_default_transcription_command(
     assert app_paths.database_file.is_file()
 
 
+def test_recording_id_is_default_transcription_source(
+    app_paths: AppPaths, tmp_path: Path
+) -> None:
+    source = tmp_path / "recording.m4a"
+    source.write_bytes(b"audio")
+    first = runner.invoke(cli.app, [str(source)])
+    assert first.exit_code == 0
+
+    second = runner.invoke(cli.app, ["1", "--retranscribe"])
+
+    assert second.exit_code == 0
+    assert "Created transcript 2" in second.stdout
+    assert source.with_name("recording.transcript.2.md").is_file()
+
+
 def test_explicit_transcribe_command_and_stdout_do_not_save(
     app_paths: AppPaths, tmp_path: Path
 ) -> None:

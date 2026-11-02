@@ -24,6 +24,7 @@ tp recording.m4a
 tp recording.m4a --output -
 tp recording.m4a --no-save
 tp recording.m4a --retranscribe
+tp 2 --retranscribe
 tp recording.m4a --retranscribe --live
 tp recording.m4a --no-progress
 tp recording.m4a --trash-source

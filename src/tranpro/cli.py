@@ -76,7 +76,9 @@ class DefaultCommandGroup(TyperGroup):
         if value.startswith("-") or value in self.commands:
             return False
         path = Path(value).expanduser()
-        return path.exists() or path.suffix.lower() in _AUDIO_SUFFIXES
+        return (
+            value.isdigit() or path.exists() or path.suffix.lower() in _AUDIO_SUFFIXES
+        )
 
 
 class TerminalProgress:
@@ -165,7 +167,9 @@ app.command("open")(open_recording)
 
 @app.command("transcribe")
 def transcribe(
-    source: Annotated[Path, typer.Argument(help="Audio or video file to transcribe.")],
+    source: Annotated[
+        Path, typer.Argument(help="Audio/video path or library recording ID.")
+    ],
     output: Annotated[
         str | None,
         typer.Option("--output", "-o", help="Markdown path, or - for stdout."),
@@ -233,6 +237,8 @@ def transcribe(
         if live and output == "-":
             raise TranscriptionError("--live cannot be combined with --output -")
         config = Config.load(paths)
+        repository = LibraryRepository(Database(paths))
+        source = _resolve_transcription_source(source, repository)
         profile_name = profile or config.default_transcription_profile
         profile_values = config.profile(profile_name)
         selected_provider = build_provider(
@@ -245,7 +251,7 @@ def transcribe(
         )
         service = TranscriptionService(
             provider=selected_provider,
-            repository=LibraryRepository(Database(paths)),
+            repository=repository,
         )
         output_path = None
         if output is not None and output != "-":
@@ -286,6 +292,21 @@ def transcribe(
     ) as error:
         typer.echo(f"Error: {error}", err=True)
         raise typer.Exit(code=1) from error
+
+
+def _resolve_transcription_source(source: Path, repository: LibraryRepository) -> Path:
+    """Resolve a numeric recording ID while preserving real numeric paths."""
+
+    expanded = source.expanduser()
+    if expanded.exists() or not str(source).isdigit():
+        return expanded
+    recording = repository.get_recording(int(str(source)))
+    if recording.current_path is None:
+        raise TranscriptionError(
+            f"Recording {recording.id} has no current source file; "
+            "restore it before retranscribing"
+        )
+    return recording.current_path
 
 
 def _render_live_event(event: TranscriptionEvent) -> None:
