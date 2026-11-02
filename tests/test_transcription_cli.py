@@ -6,7 +6,11 @@ from typer.testing import CliRunner
 from tranpro import cli
 from tranpro.library.models import Segment
 from tranpro.paths import AppPaths
-from tranpro.transcription.models import ProviderDescriptor, TranscriptionOutput
+from tranpro.transcription.models import (
+    ProviderDescriptor,
+    TranscriptionEventSink,
+    TranscriptionOutput,
+)
 
 runner = CliRunner()
 
@@ -16,7 +20,9 @@ class FakeProvider:
     def descriptor(self) -> ProviderDescriptor:
         return ProviderDescriptor("fake", "test-model", {})
 
-    def transcribe(self, source: Path) -> TranscriptionOutput:
+    def transcribe(
+        self, source: Path, *, emit: TranscriptionEventSink | None = None
+    ) -> TranscriptionOutput:
         return TranscriptionOutput((Segment(0, 0, 1000, "CLI transcript."),))
 
 

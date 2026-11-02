@@ -11,6 +11,7 @@ from tranpro.library.models import Segment
 from tranpro.transcription.models import (
     ProviderDescriptor,
     TranscriptionError,
+    TranscriptionEventSink,
     TranscriptionOutput,
 )
 
@@ -62,7 +63,9 @@ class ParakeetMLXProvider:
             },
         )
 
-    def transcribe(self, source: Path) -> TranscriptionOutput:
+    def transcribe(
+        self, source: Path, *, emit: TranscriptionEventSink | None = None
+    ) -> TranscriptionOutput:
         try:
             if self._model is None:
                 self._model = self._loader(self.model_name)

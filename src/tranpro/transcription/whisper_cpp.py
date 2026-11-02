@@ -13,6 +13,7 @@ from tranpro.library.models import Segment
 from tranpro.transcription.models import (
     ProviderDescriptor,
     TranscriptionError,
+    TranscriptionEventSink,
     TranscriptionOutput,
 )
 
@@ -45,7 +46,9 @@ class WhisperCppProvider:
             },
         )
 
-    def transcribe(self, source: Path) -> TranscriptionOutput:
+    def transcribe(
+        self, source: Path, *, emit: TranscriptionEventSink | None = None
+    ) -> TranscriptionOutput:
         executable = self._validated_executable()
         if not self.model_path.is_file():
             raise TranscriptionError(f"whisper.cpp model not found: {self.model_path}")

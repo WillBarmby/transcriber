@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeAlias
 
 from tranpro.library.models import Segment
 
@@ -27,11 +28,41 @@ class TranscriptionOutput:
     duration_ms: int | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class TranscriptionProgress:
+    """Progress through the provider's source audio."""
+
+    completed_ms: int
+    total_ms: int
+
+
+@dataclass(frozen=True, slots=True)
+class TranscriptSegmentFinalized:
+    """A segment whose displayed text will no longer be revised."""
+
+    segment: Segment
+
+
+@dataclass(frozen=True, slots=True)
+class TranscriptReplayStarted:
+    """Signals that events are replaying an existing stored transcript."""
+
+    transcript_id: int
+
+
+TranscriptionEvent: TypeAlias = (
+    TranscriptionProgress | TranscriptSegmentFinalized | TranscriptReplayStarted
+)
+TranscriptionEventSink: TypeAlias = Callable[[TranscriptionEvent], None]
+
+
 class TranscriptionProvider(Protocol):
     @property
     def descriptor(self) -> ProviderDescriptor: ...
 
-    def transcribe(self, source: Path) -> TranscriptionOutput: ...
+    def transcribe(
+        self, source: Path, *, emit: TranscriptionEventSink | None = None
+    ) -> TranscriptionOutput: ...
 
 
 @dataclass(frozen=True, slots=True)

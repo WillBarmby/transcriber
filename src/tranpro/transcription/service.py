@@ -11,9 +11,12 @@ from tranpro.library.fingerprint import fingerprint_file
 from tranpro.library.repository import LibraryRepository
 from tranpro.transcription.models import (
     TranscriptionError,
+    TranscriptionEventSink,
     TranscriptionOutcome,
     TranscriptionProvider,
     TranscriptionRequest,
+    TranscriptReplayStarted,
+    TranscriptSegmentFinalized,
 )
 from tranpro.transcription.probe import probe_duration_ms
 from tranpro.transcription.render import content_hash, render_markdown, write_markdown
@@ -35,7 +38,12 @@ class TranscriptionService:
         self.duration_probe = duration_probe
         self._trash = trash
 
-    def run(self, request: TranscriptionRequest) -> TranscriptionOutcome:
+    def run(
+        self,
+        request: TranscriptionRequest,
+        *,
+        emit: TranscriptionEventSink | None = None,
+    ) -> TranscriptionOutcome:
         source = request.source.expanduser().resolve()
         if not source.is_file():
             raise TranscriptionError(f"Source audio not found: {source}")
@@ -66,6 +74,10 @@ class TranscriptionService:
         if reusable is not None:
             assert recording is not None
             segments = tuple(self.repository.get_segments(reusable.id))
+            if emit is not None:
+                emit(TranscriptReplayStarted(reusable.id))
+                for segment in segments:
+                    emit(TranscriptSegmentFinalized(segment))
             duration_ms = recording.duration_ms
             language = reusable.language
             recording, _ = self.repository.register_recording(
@@ -77,7 +89,7 @@ class TranscriptionService:
             transcript_id = reusable.id
             reused = True
         else:
-            result = self.provider.transcribe(source)
+            result = self.provider.transcribe(source, emit=emit)
             segments = result.segments
             duration_ms = self.duration_probe(source) or result.duration_ms
             language = result.language

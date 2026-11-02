@@ -9,8 +9,13 @@ from tranpro.paths import AppPaths
 from tranpro.transcription.models import (
     ProviderDescriptor,
     TranscriptionError,
+    TranscriptionEvent,
+    TranscriptionEventSink,
     TranscriptionOutput,
+    TranscriptionProgress,
     TranscriptionRequest,
+    TranscriptReplayStarted,
+    TranscriptSegmentFinalized,
 )
 from tranpro.transcription.service import TranscriptionService
 
@@ -24,12 +29,18 @@ class FakeProvider:
     def descriptor(self) -> ProviderDescriptor:
         return ProviderDescriptor("fake", "v1", {"quality": "good"})
 
-    def transcribe(self, source: Path) -> TranscriptionOutput:
+    def transcribe(
+        self, source: Path, *, emit: TranscriptionEventSink | None = None
+    ) -> TranscriptionOutput:
         self.calls += 1
         if self.fail:
             raise TranscriptionError("provider failure")
+        segment = Segment(0, 0, 1000, "A transcript.")
+        if emit is not None:
+            emit(TranscriptionProgress(completed_ms=1000, total_ms=1000))
+            emit(TranscriptSegmentFinalized(segment))
         return TranscriptionOutput(
-            (Segment(0, 0, 1000, "A transcript."),),
+            (segment,),
             language="en",
             duration_ms=1000,
         )
@@ -78,6 +89,27 @@ def test_success_persists_and_equivalent_second_run_reuses(
     assert second.transcript_id == first.transcript_id
     assert first.output_path == source.with_name("podcast.transcript.md")
     assert len(LibraryRepository(Database(paths)).list_recordings()) == 1
+
+
+def test_events_flow_from_provider_and_replay_from_reused_run(
+    paths: AppPaths, source: Path
+) -> None:
+    provider = FakeProvider()
+    transcription = service(paths, provider)
+    first_events: list[TranscriptionEvent] = []
+    replay_events: list[TranscriptionEvent] = []
+
+    first = transcription.run(TranscriptionRequest(source), emit=first_events.append)
+    transcription.run(TranscriptionRequest(source), emit=replay_events.append)
+
+    assert first_events == [
+        TranscriptionProgress(completed_ms=1000, total_ms=1000),
+        TranscriptSegmentFinalized(Segment(0, 0, 1000, "A transcript.")),
+    ]
+    assert replay_events == [
+        TranscriptReplayStarted(first.transcript_id or 0),
+        TranscriptSegmentFinalized(Segment(0, 0, 1000, "A transcript.")),
+    ]
 
 
 def test_retranscribe_creates_new_version_and_non_overwriting_markdown(
