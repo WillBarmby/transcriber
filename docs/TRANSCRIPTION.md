@@ -16,6 +16,26 @@ and 15 seconds of overlap by default; tranpro stores those settings as part of
 transcript identity. Equivalent provider, model, and settings reuse a successful
 run unless `--retranscribe` is present.
 
+## Live terminal output
+
+Parakeet can print finalized timestamped sentences while it processes a
+recording:
+
+```shell
+tp podcast.m4a --retranscribe --live
+```
+
+Live mode incrementally runs Parakeet's normal chunk decoder and prints only
+sentences that are safely outside the next chunk's overlap window. The final
+chunks use the same overlap merge as batch transcription, preserving its aligned
+timestamps and quality. The completed result is saved normally in SQLite and
+Markdown. Its run settings record streaming mode, so it remains distinct from
+batch transcripts for reuse and comparison.
+
+`--live` cannot be combined with `--output -`, which prints a complete Markdown
+document only after processing. Live output is currently available only with
+the `parakeet-mlx` provider.
+
 Parakeet MLX documents its current API and timestamp behavior in the
 [upstream project](https://github.com/senstella/parakeet-mlx). Local Parakeet is
 supported on Apple Silicon. Other platforms can use a hosted provider in a later

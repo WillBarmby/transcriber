@@ -10,6 +10,7 @@ from tranpro.transcription.models import (
     ProviderDescriptor,
     TranscriptionEventSink,
     TranscriptionOutput,
+    TranscriptSegmentFinalized,
 )
 
 runner = CliRunner()
@@ -23,7 +24,10 @@ class FakeProvider:
     def transcribe(
         self, source: Path, *, emit: TranscriptionEventSink | None = None
     ) -> TranscriptionOutput:
-        return TranscriptionOutput((Segment(0, 0, 1000, "CLI transcript."),))
+        segment = Segment(0, 0, 1000, "CLI transcript.")
+        if emit is not None:
+            emit(TranscriptSegmentFinalized(segment))
+        return TranscriptionOutput((segment,))
 
 
 @pytest.fixture
@@ -79,3 +83,29 @@ def test_existing_commands_still_win_over_default_file_routing(
 
     assert result.exit_code == 0
     assert "No recordings" in result.stdout
+
+
+def test_live_prints_finalized_segments_and_still_writes_output(
+    app_paths: AppPaths, tmp_path: Path
+) -> None:
+    source = tmp_path / "recording.wav"
+    source.write_bytes(b"audio")
+
+    result = runner.invoke(cli.app, [str(source), "--live"])
+
+    assert result.exit_code == 0
+    assert "[00:00] CLI transcript." in result.stdout
+    assert "Created transcript 1" in result.stdout
+    assert source.with_name("recording.transcript.md").is_file()
+
+
+def test_live_rejects_duplicate_stdout_mode(
+    app_paths: AppPaths, tmp_path: Path
+) -> None:
+    source = tmp_path / "recording.wav"
+    source.write_bytes(b"audio")
+
+    result = runner.invoke(cli.app, [str(source), "--live", "--output", "-"])
+
+    assert result.exit_code == 1
+    assert "--live cannot be combined with --output -" in result.stderr

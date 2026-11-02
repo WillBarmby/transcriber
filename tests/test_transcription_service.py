@@ -33,9 +33,11 @@ class FakeProvider:
         self, source: Path, *, emit: TranscriptionEventSink | None = None
     ) -> TranscriptionOutput:
         self.calls += 1
-        if self.fail:
-            raise TranscriptionError("provider failure")
         segment = Segment(0, 0, 1000, "A transcript.")
+        if self.fail:
+            if emit is not None:
+                emit(TranscriptSegmentFinalized(segment))
+            raise TranscriptionError("provider failure")
         if emit is not None:
             emit(TranscriptionProgress(completed_ms=1000, total_ms=1000))
             emit(TranscriptSegmentFinalized(segment))
@@ -155,6 +157,20 @@ def test_provider_failure_creates_no_record_or_output(
     assert not source.with_name("podcast.transcript.md").exists()
 
 
+def test_partial_live_events_are_not_persisted_after_provider_failure(
+    paths: AppPaths, source: Path
+) -> None:
+    events: list[TranscriptionEvent] = []
+    transcription = service(paths, FakeProvider(fail=True))
+
+    with pytest.raises(TranscriptionError, match="provider failure"):
+        transcription.run(TranscriptionRequest(source), emit=events.append)
+
+    assert events == [TranscriptSegmentFinalized(Segment(0, 0, 1000, "A transcript."))]
+    assert LibraryRepository(Database(paths)).list_recordings() == []
+    assert not source.with_name("podcast.transcript.md").exists()
+
+
 def test_trash_is_explicitly_finalized_after_output(
     paths: AppPaths, source: Path
 ) -> None:
@@ -211,3 +227,22 @@ def test_force_replaces_explicit_projection_and_updates_its_record(
     assert f"transcript_id: {second.transcript_id}" in output.read_text(
         encoding="utf-8"
     )
+
+
+def test_missing_default_projection_path_is_reassigned_to_new_run(
+    paths: AppPaths, source: Path
+) -> None:
+    provider = FakeProvider()
+    transcription = service(paths, provider)
+    first = transcription.run(TranscriptionRequest(source))
+    assert first.output_path is not None
+    first.output_path.unlink()
+
+    second = transcription.run(TranscriptionRequest(source, retranscribe=True))
+
+    repository = LibraryRepository(Database(paths))
+    assert second.output_path == first.output_path
+    assert repository.find_rendered_transcript(first.transcript_id or 0) is None
+    rendered = repository.find_rendered_transcript(second.transcript_id or 0)
+    assert rendered is not None
+    assert rendered.path == second.output_path

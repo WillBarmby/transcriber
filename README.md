@@ -24,6 +24,7 @@ tp recording.m4a
 tp recording.m4a --output -
 tp recording.m4a --no-save
 tp recording.m4a --retranscribe
+tp recording.m4a --retranscribe --live
 tp recording.m4a --trash-source
 tp paths
 tp config show
@@ -57,6 +58,8 @@ By default, tranpro saves a versioned library record and writes
 stdout, while `--no-save` skips SQLite. Existing equivalent runs are reused;
 `--retranscribe` creates another immutable version. `--trash-source`/`-d` moves
 the source to the operating-system Trash only after output succeeds.
+Parakeet's `--live` mode prints finalized timestamped sentences as they become
+available while retaining the complete saved library and Markdown outputs.
 
 See the [transcription guide](docs/TRANSCRIPTION.md) and
 [roadmap](docs/ROADMAP.md).

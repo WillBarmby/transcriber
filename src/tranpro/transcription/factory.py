@@ -17,6 +17,7 @@ def build_provider(
     model_override: str | None = None,
     whisper_cli_override: Path | None = None,
     language_override: str | None = None,
+    live: bool = False,
 ) -> TranscriptionProvider:
     provider_name = provider_override or _string(
         profile, "transcription_provider", required=True
@@ -28,8 +29,13 @@ def build_provider(
             model=model or DEFAULT_PARAKEET_MODEL,
             chunk_duration=_number(profile, "chunk_duration", 120.0),
             overlap_duration=_number(profile, "overlap_duration", 15.0),
+            live=live,
         )
     if provider_name == "whisper-cpp":
+        if live:
+            raise TranscriptionError(
+                "Live transcription is currently supported only by parakeet-mlx"
+            )
         if not model:
             raise TranscriptionError(
                 "whisper-cpp requires a model path in the profile or --model"

@@ -139,7 +139,10 @@ class TranscriptionService:
                     format="markdown",
                     path=output_path,
                     content_hash=content_hash(markdown),
-                    replace=request.force,
+                    # write_markdown has already enforced filesystem safety. A
+                    # missing or explicitly replaced projection may reuse a path
+                    # that an older immutable run previously rendered to.
+                    replace=True,
                 )
 
         return TranscriptionOutcome(

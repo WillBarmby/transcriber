@@ -28,8 +28,13 @@ from tranpro.paths import AppPaths
 from tranpro.transcription.factory import build_provider
 from tranpro.transcription.models import (
     TranscriptionError,
+    TranscriptionEvent,
+    TranscriptionProgress,
     TranscriptionRequest,
+    TranscriptReplayStarted,
+    TranscriptSegmentFinalized,
 )
+from tranpro.transcription.render import format_timestamp
 from tranpro.transcription.service import TranscriptionService
 
 _AUDIO_SUFFIXES = {
@@ -127,6 +132,12 @@ def transcribe(
         bool,
         typer.Option("--force", help="Replace an explicitly selected output path."),
     ] = False,
+    live: Annotated[
+        bool,
+        typer.Option(
+            "--live", help="Print finalized timestamped segments during transcription."
+        ),
+    ] = False,
     trash_source: Annotated[
         bool,
         typer.Option(
@@ -140,6 +151,8 @@ def transcribe(
 
     paths = AppPaths.for_user()
     try:
+        if live and output == "-":
+            raise TranscriptionError("--live cannot be combined with --output -")
         config = Config.load(paths)
         profile_name = profile or config.default_transcription_profile
         profile_values = config.profile(profile_name)
@@ -149,6 +162,7 @@ def transcribe(
             model_override=model,
             whisper_cli_override=whisper_cli,
             language_override=language,
+            live=live,
         )
         service = TranscriptionService(
             provider=selected_provider,
@@ -166,7 +180,7 @@ def transcribe(
             force=force,
             trash_source=trash_source,
         )
-        outcome = service.run(request)
+        outcome = service.run(request, emit=_render_live_event if live else None)
         if request.output_to_stdout:
             typer.echo(outcome.markdown, nl=False)
         elif outcome.output_path is not None:
@@ -185,6 +199,16 @@ def transcribe(
     ) as error:
         typer.echo(f"Error: {error}", err=True)
         raise typer.Exit(code=1) from error
+
+
+def _render_live_event(event: TranscriptionEvent) -> None:
+    if isinstance(event, TranscriptReplayStarted):
+        typer.echo(f"Replaying saved transcript {event.transcript_id}", err=True)
+    elif isinstance(event, TranscriptSegmentFinalized):
+        segment = event.segment
+        typer.echo(f"[{format_timestamp(segment.start_ms)}] {segment.text}")
+    elif isinstance(event, TranscriptionProgress):
+        return
 
 
 def version_callback(value: bool) -> None:

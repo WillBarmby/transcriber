@@ -36,7 +36,7 @@ def render_markdown(
         lines.append("_No speech detected._")
     for segment in segments:
         speaker = f" **{segment.speaker}:**" if segment.speaker else ""
-        lines.append(f"[{_format_timestamp(segment.start_ms)}]{speaker} {segment.text}")
+        lines.append(f"[{format_timestamp(segment.start_ms)}]{speaker} {segment.text}")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
@@ -108,7 +108,7 @@ def _available_version(path: Path) -> Path:
         index += 1
 
 
-def _format_timestamp(milliseconds: int) -> str:
+def format_timestamp(milliseconds: int) -> str:
     total_seconds = milliseconds // 1000
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
