@@ -50,6 +50,9 @@ tp paths
 tp config show
 tp config init
 tp config edit
+tp prompt list
+tp prompt show detailed-notes
+tp prompt save my-notes --file prompt.md
 tp library init
 tp library status
 tp list
@@ -64,6 +67,10 @@ migrations and pre-migration backups. `forget` is a recoverable soft deletion:
 it does not remove source audio, transcripts, or summaries. Full-text search uses
 SQLite FTS5 across timestamped transcript segments and summary sections. See the
 [database design](docs/DATABASE.md) for identity, versioning, and safety details.
+
+Prompt commands prepare reusable instructions for the upcoming summary workflow.
+Each save creates an immutable version so an old summary can always identify the
+exact instructions that produced it.
 
 Transcription is the default operation. The equivalent explicit form is also
 available:
