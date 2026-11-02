@@ -27,7 +27,14 @@ behavior.
 - Trash source media only after successful completion
 - Retire the legacy watcher/archive pipeline
 
-## 4. Summaries and prompts
+## 4. Public alpha distribution
+
+- Publish `tranpro` to PyPI with the `tp` console command
+- Verify wheel installation in a clean environment
+- Rehearse on TestPyPI and publish through short-lived trusted credentials
+- Attach built distributions to a tagged GitHub release
+
+## 5. Summaries and prompts
 
 - Ollama with Gemma 4 12B as the local default
 - Built-in detailed-notes preset and versioned user prompts
@@ -35,21 +42,21 @@ behavior.
 - Context feasibility planning and hierarchical fallback
 - Grounded segment references and Markdown rendering
 
-## 5. OpenAI profile
+## 6. OpenAI profile
 
 - Hosted transcription with `gpt-transcribe`
 - Hosted summaries with `gpt-6.1-terra`
 - Usage and estimated-cost records
 - Mocked provider tests; no network calls in the test suite
 
-## 6. Google Docs publication
+## 7. Google Docs publication
 
 - Bring-your-own desktop OAuth credentials and Keychain token storage
 - Polished native Google Docs styles
 - Immutable publication snapshots, reuse, and explicit updates
 - Transcript-only and transcript-plus-summary publication
 
-## 7. Release polish
+## 8. Release polish
 
 - Optional fzf-based interactive browsing
 - Doctor/setup commands and shell completion
@@ -59,3 +66,7 @@ behavior.
 Semantic search is a planned extension after the core library stabilizes. Its
 passage index will be versioned and derived from canonical transcript segments so
 it can coexist with SQLite FTS without changing recording identity.
+
+Speaker diarization is also planned as an optional second pass over timestamped
+segments. It will remain provider-independent so local diarizers can be compared
+without coupling speaker labels to the transcription model.
