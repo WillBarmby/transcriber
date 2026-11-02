@@ -266,6 +266,32 @@ class LibraryRepository:
             ).fetchall()
             return [self._transcript(row) for row in rows]
 
+    def get_transcript(self, transcript_id: int) -> TranscriptRun:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM transcript_runs WHERE id = ?", (transcript_id,)
+            ).fetchone()
+            if row is None:
+                raise LibraryError(f"Transcript {transcript_id} was not found")
+            return self._transcript(row)
+
+    def get_preferred_transcript(self, recording_id: int) -> TranscriptRun:
+        with self.database.connect() as connection:
+            self._require_recording(connection, recording_id)
+            row = connection.execute(
+                """
+                SELECT * FROM transcript_runs
+                WHERE recording_id = ? AND is_preferred = 1
+                ORDER BY created_at DESC, id DESC LIMIT 1
+                """,
+                (recording_id,),
+            ).fetchone()
+            if row is None:
+                raise LibraryError(
+                    f"Recording {recording_id} has no preferred transcript"
+                )
+            return self._transcript(row)
+
     def get_segments(self, transcript_id: int) -> list[Segment]:
         with self.database.connect() as connection:
             rows = connection.execute(
