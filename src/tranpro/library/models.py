@@ -45,6 +45,16 @@ class TranscriptRun:
 
 
 @dataclass(frozen=True, slots=True)
+class PromptTemplate:
+    id: int
+    name: str
+    version: int
+    instructions: str
+    is_builtin: bool
+    created_at: str
+
+
+@dataclass(frozen=True, slots=True)
 class SummarySection:
     heading: str
     body: str
@@ -61,6 +71,16 @@ class SummaryRun:
     model: str
     status: str
     created_at: str
+
+
+@dataclass(frozen=True, slots=True)
+class SummaryStep:
+    index: int
+    kind: str
+    input_segment_refs: tuple[str, ...]
+    input_step_indexes: tuple[int, ...]
+    output_text: str
+    usage: dict[str, int | float]
 
 
 @dataclass(frozen=True, slots=True)

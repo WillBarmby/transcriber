@@ -185,3 +185,63 @@ def test_empty_transcript_is_a_valid_successful_run(
 def test_missing_recording_has_domain_error(repository: LibraryRepository) -> None:
     with pytest.raises(RecordNotFoundError, match="Recording 404"):
         repository.get_recording(404)
+
+
+def test_prompts_are_versioned_and_builtin_is_available(
+    repository: LibraryRepository,
+) -> None:
+    builtin = repository.get_prompt("detailed-notes")
+    first = repository.save_prompt("brief", "Summarize briefly.")
+    second = repository.save_prompt("brief", "Use exactly five bullets.")
+
+    assert builtin.is_builtin is True
+    assert (first.version, second.version) == (1, 2)
+    assert repository.get_prompt("brief").instructions == "Use exactly five bullets."
+    assert [prompt.name for prompt in repository.list_prompts()] == [
+        "brief",
+        "detailed-notes",
+    ]
+    assert len(repository.list_prompts(all_versions=True)) == 3
+
+
+def test_summary_lifecycle_preserves_plan_steps_and_validates_citations(
+    repository: LibraryRepository, recording_path: Path
+) -> None:
+    recording, _ = repository.register_recording(recording_path)
+    transcript = repository.add_transcript(
+        recording.id,
+        provider="test",
+        model="test",
+        segments=[Segment(0, 0, 1_000, "A grounded claim")],
+    )
+    run = repository.begin_summary(
+        transcript.id,
+        prompt=repository.get_prompt("detailed-notes"),
+        system_contract="Return structured notes.",
+        provider="test",
+        model="test",
+        context_plan={"mode": "whole"},
+    )
+    step = repository.add_summary_step(
+        run.id,
+        kind="source",
+        input_segment_refs=("s000001",),
+        output_text="Intermediate notes",
+        usage={"input_tokens": 12},
+    )
+
+    with pytest.raises(ValueError, match="s999999"):
+        repository.complete_summary(
+            run.id,
+            [SummarySection("Bad citation", "Body", ("s999999",))],
+        )
+
+    completed = repository.complete_summary(
+        run.id,
+        [SummarySection("Grounded", "Body", ("s000001",))],
+    )
+
+    assert step.index == 0
+    assert completed.status == "succeeded"
+    assert repository.get_summary_steps(run.id) == [step]
+    assert repository.get_summary_sections(run.id)[0].segment_refs == ("s000001",)

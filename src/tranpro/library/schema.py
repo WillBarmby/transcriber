@@ -223,6 +223,39 @@ MIGRATIONS: dict[int, str] = {
         CREATE INDEX rendered_outputs_transcript_idx
             ON rendered_outputs(transcript_id, created_at DESC);
     """,
+    3: """
+        INSERT INTO prompts(name, version, instructions, is_builtin, created_at)
+        VALUES (
+            'detailed-notes',
+            1,
+            'Create faithful, detailed notes organized by topic. Include a ' ||
+            'concise overview, key arguments and supporting details, key terms, ' ||
+            'new concepts introduced, and sources cited or mentioned. Distinguish ' ||
+            'claims made in the recording from verified facts. Ground every ' ||
+            'section in the supplied transcript segment references and do not ' ||
+            'invent citations.',
+            1,
+            strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        )
+        ON CONFLICT(name, version) DO NOTHING;
+
+        CREATE TABLE summary_steps (
+            id INTEGER PRIMARY KEY,
+            summary_id INTEGER NOT NULL
+                REFERENCES summary_runs(id) ON DELETE CASCADE,
+            step_index INTEGER NOT NULL CHECK (step_index >= 0),
+            kind TEXT NOT NULL CHECK (kind IN ('source', 'synthesis')),
+            input_segment_refs_json TEXT NOT NULL DEFAULT '[]',
+            input_step_indexes_json TEXT NOT NULL DEFAULT '[]',
+            output_text TEXT NOT NULL,
+            usage_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL,
+            UNIQUE (summary_id, step_index)
+        ) STRICT;
+
+        CREATE INDEX summary_steps_summary_idx
+            ON summary_steps(summary_id, step_index);
+    """,
 }
 
 LATEST_SCHEMA_VERSION = max(MIGRATIONS)
