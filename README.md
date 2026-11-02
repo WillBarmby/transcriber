@@ -13,6 +13,24 @@ the shorter `tp`.
 The current release provides local transcription and the persistent transcript
 library. Summarization and Google Docs publication remain roadmap milestones.
 
+## Installation
+
+tranpro currently targets Python 3.11 or newer on Apple Silicon Macs. Install
+the CLI and its local Parakeet backend with one command:
+
+```shell
+python3 -m pip install tranpro
+tp --version
+tp recording.m4a
+```
+
+The first transcription downloads the model from Hugging Face and caches it for
+later runs. Parakeet MLX is installed automatically only on Apple Silicon;
+other platforms receive the portable CLI and database without that dependency.
+
+This is an alpha release: the transcript database is designed to persist, but
+commands and configuration may still change before 1.0.
+
 ## Current commands
 
 After installation:
@@ -76,13 +94,12 @@ tranpro requires Python 3.11 or newer. From a clone:
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e '.[dev,local]'
+python -m pip install -e '.[dev]'
 tp --version
 ```
 
-The `local` extra installs Parakeet MLX on Apple Silicon. The model downloads to
-the Hugging Face cache on first use. A lightweight install without a local model
-backend remains available with `pip install tranpro`.
+On Apple Silicon, the normal installation includes Parakeet MLX. Its model
+downloads to the Hugging Face cache on first use.
 
 Run the same checks used in continuous integration:
 
@@ -94,6 +111,9 @@ pytest
 python -m build
 twine check dist/*
 ```
+
+Maintainers can find the tagged-release process in
+[docs/RELEASING.md](docs/RELEASING.md).
 
 The first supported local runtime target is macOS on Apple Silicon. The core,
 database, and hosted-provider abstractions are intended to remain portable;

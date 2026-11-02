@@ -6,7 +6,7 @@ On Apple Silicon, the default profile uses Parakeet MLX with
 `mlx-community/parakeet-tdt-0.6b-v3`:
 
 ```shell
-python -m pip install 'tranpro[local]'
+python -m pip install tranpro
 tp podcast.m4a
 ```
 
