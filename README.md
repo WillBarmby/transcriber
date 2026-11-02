@@ -27,7 +27,20 @@ tp paths
 tp config show
 tp config init
 tp config edit
+tp library init
+tp library status
+tp list
+tp show RECORDING_ID
+tp search "budget constraints"
+tp forget RECORDING_ID
+tp restore RECORDING_ID
 ```
+
+Library commands use an embedded SQLite database with automatic schema
+migrations and pre-migration backups. `forget` is a recoverable soft deletion:
+it does not remove source audio, transcripts, or summaries. Full-text search uses
+SQLite FTS5 across timestamped transcript segments and summary sections. See the
+[database design](docs/DATABASE.md) for identity, versioning, and safety details.
 
 The planned one-shot interface will make transcription the default operation and
 summarization explicit:
