@@ -98,10 +98,20 @@ class NemotronMLXProvider:
             raise DiarizationError("nemotron-mlx requires an Apple Silicon Mac")
         try:
             from mlx_audio.vad import load
+        except ModuleNotFoundError as error:
+            if error.name == "mlx_audio" or (
+                error.name is not None and error.name.startswith("mlx_audio.")
+            ):
+                raise DiarizationError(
+                    "MLX Audio is not installed. With pipx, run: "
+                    "pipx inject tranpro 'mlx-audio>=0.6.2,<0.7'"
+                ) from error
+            raise DiarizationError(
+                f"MLX Audio could not initialize: {error}"
+            ) from error
         except ImportError as error:
             raise DiarizationError(
-                "MLX Audio is not installed. With pipx, run: "
-                "pipx inject tranpro 'mlx-audio>=0.6.2,<0.7'"
+                f"MLX Audio could not initialize: {error}"
             ) from error
         try:
             return load(self.model, strict=True)
