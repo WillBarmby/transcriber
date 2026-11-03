@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -39,6 +40,24 @@ def test_config_short_help_alias() -> None:
 
     assert result.exit_code == 0
     assert "Inspect and edit tranpro configuration" in result.stdout
+
+
+def test_google_and_publish_commands_are_discoverable() -> None:
+    root = runner.invoke(cli.app, ["--help"])
+    google = runner.invoke(cli.app, ["google"])
+    publish = runner.invoke(cli.app, ["publish", "--help"], color=True)
+
+    assert root.exit_code == 0
+    assert "publish" in root.stdout
+    assert google.exit_code == 0
+    assert "setup" in google.stdout
+    assert "authorize" in google.stdout
+    assert publish.exit_code == 0
+    plain_help = re.sub(r"\x1b\[[0-9;]*m", "", publish.stdout)
+    assert "--open" in plain_help
+    assert "--with-summary" in plain_help
+    assert "--with-timestamps" in plain_help
+    assert "--update" in plain_help
 
 
 def test_paths_are_displayed_without_creation(

@@ -25,6 +25,7 @@ from typer.core import TyperGroup
 
 from tranpro import __version__
 from tranpro.config import DEFAULT_CONFIG, Config, ConfigError, initialize_config
+from tranpro.diarization.cli import diarize_recording
 from tranpro.library.cli import (
     forget_recording,
     library_app,
@@ -37,7 +38,12 @@ from tranpro.library.cli import (
 from tranpro.library.database import Database, DatabaseError
 from tranpro.library.repository import LibraryError, LibraryRepository
 from tranpro.paths import AppPaths
+from tranpro.publication.cli import google_app, publish_google_doc
 from tranpro.summarization.cli import prompt_app
+from tranpro.summarization.factory import build_summary_provider
+from tranpro.summarization.ollama import SummarizationError
+from tranpro.summarization.planner import ContextPlanningError
+from tranpro.summarization.service import SummaryOutcome, SummaryService
 from tranpro.transcription.factory import build_provider
 from tranpro.transcription.models import (
     TranscriptionError,
@@ -159,6 +165,9 @@ config_app = typer.Typer(
 app.add_typer(config_app, name="config")
 app.add_typer(library_app, name="library")
 app.add_typer(prompt_app, name="prompt")
+app.add_typer(google_app, name="google")
+app.command("publish")(publish_google_doc)
+app.command("diarize")(diarize_recording)
 app.command("list")(list_recordings)
 app.command("show")(show_recording)
 app.command("search")(search_library)
@@ -231,6 +240,12 @@ def transcribe(
             help="Move source to OS Trash after every requested output succeeds.",
         ),
     ] = False,
+    summarize_after: Annotated[
+        bool,
+        typer.Option(
+            "--summarize", help="Create a summary after the saved transcript succeeds."
+        ),
+    ] = False,
 ) -> None:
     """Transcribe one recording; this is also the default tp action."""
 
@@ -238,6 +253,10 @@ def transcribe(
     try:
         if live and output == "-":
             raise TranscriptionError("--live cannot be combined with --output -")
+        if summarize_after and output == "-":
+            raise TranscriptionError("--summarize cannot be combined with --output -")
+        if summarize_after and no_save:
+            raise TranscriptionError("--summarize requires a saved transcript")
         config = Config.load(paths)
         repository = LibraryRepository(Database(paths))
         source = _resolve_transcription_source(source, repository)
@@ -282,6 +301,15 @@ def transcribe(
             action = "Reused" if outcome.reused else "Created"
             typer.echo(f"{action} transcript {outcome.transcript_id or 'unsaved'}")
             typer.echo(f"Markdown: {outcome.output_path}")
+        if summarize_after:
+            assert outcome.transcript_id is not None
+            summary_outcome = _summarize_transcript(
+                outcome.transcript_id,
+                config=config,
+                repository=repository,
+            )
+            typer.echo(f"Created summary {summary_outcome.summary_id}")
+            typer.echo(f"Markdown: {summary_outcome.output_path}")
         service.finalize_trash(outcome)
         if trash_source:
             typer.echo(f"Moved source to Trash: {outcome.source}", err=True)
@@ -290,10 +318,136 @@ def transcribe(
         DatabaseError,
         LibraryError,
         TranscriptionError,
+        SummarizationError,
+        ContextPlanningError,
         OSError,
     ) as error:
         typer.echo(f"Error: {error}", err=True)
         raise typer.Exit(code=1) from error
+
+
+@app.command("summarize")
+def summarize_recording(
+    recording_id: Annotated[
+        int, typer.Argument(min=1, help="Library recording ID to summarize.")
+    ],
+    transcript_id: Annotated[
+        int | None,
+        typer.Option("--transcript", min=1, help="Use an exact transcript run."),
+    ] = None,
+    prompt: Annotated[
+        str, typer.Option("--prompt", help="Saved prompt name.")
+    ] = "detailed-notes",
+    prompt_version: Annotated[
+        int | None,
+        typer.Option("--prompt-version", min=1, help="Exact saved prompt version."),
+    ] = None,
+    profile: Annotated[
+        str | None, typer.Option("--profile", help="Named summary profile.")
+    ] = None,
+    provider: Annotated[
+        str | None, typer.Option("--provider", help="Override summary provider.")
+    ] = None,
+    model: Annotated[
+        str | None, typer.Option("--model", help="Override summary model.")
+    ] = None,
+    context_tokens: Annotated[
+        int | None,
+        typer.Option(
+            "--context-tokens", min=2048, help="Effective runtime context window."
+        ),
+    ] = None,
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Summary Markdown path.")
+    ] = None,
+    force: Annotated[
+        bool, typer.Option("--force", help="Replace an explicitly selected output.")
+    ] = False,
+    without_speakers: Annotated[
+        bool,
+        typer.Option(
+            "--without-speakers",
+            help="Ignore an existing diarization when creating the summary.",
+        ),
+    ] = False,
+) -> None:
+    """Explicitly summarize a saved transcript with a local or hosted profile."""
+
+    paths = AppPaths.for_user()
+    try:
+        config = Config.load(paths)
+        repository = LibraryRepository(Database(paths))
+        selected_transcript = (
+            repository.get_preferred_transcript(recording_id)
+            if transcript_id is None
+            else repository.get_transcript(transcript_id)
+        )
+        if selected_transcript.recording_id != recording_id:
+            raise SummarizationError(
+                f"Transcript {selected_transcript.id} does not belong to "
+                f"recording {recording_id}"
+            )
+        outcome = _summarize_transcript(
+            selected_transcript.id,
+            config=config,
+            repository=repository,
+            profile=profile,
+            provider=provider,
+            model=model,
+            context_tokens=context_tokens,
+            prompt=prompt,
+            prompt_version=prompt_version,
+            output=output,
+            force=force,
+            use_speakers=not without_speakers,
+        )
+        typer.echo(f"Created summary {outcome.summary_id}")
+        typer.echo(f"Context: {outcome.context_mode}")
+        typer.echo(f"Markdown: {outcome.output_path}")
+    except (
+        ConfigError,
+        DatabaseError,
+        LibraryError,
+        SummarizationError,
+        ContextPlanningError,
+        OSError,
+    ) as error:
+        typer.echo(f"Error: {error}", err=True)
+        raise typer.Exit(code=1) from error
+
+
+def _summarize_transcript(
+    transcript_id: int,
+    *,
+    config: Config,
+    repository: LibraryRepository,
+    profile: str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+    context_tokens: int | None = None,
+    prompt: str = "detailed-notes",
+    prompt_version: int | None = None,
+    output: Path | None = None,
+    force: bool = False,
+    use_speakers: bool = True,
+) -> SummaryOutcome:
+    profile_name = profile or config.default_summary_profile
+    selected_provider = build_summary_provider(
+        config.profile(profile_name),
+        provider_override=provider,
+        model_override=model,
+        context_override=context_tokens,
+    )
+    service = SummaryService(provider=selected_provider, repository=repository)
+    with Console(stderr=True).status("[bold]Summarizing[/bold]"):
+        return service.run(
+            transcript_id,
+            prompt_name=prompt,
+            prompt_version=prompt_version,
+            output=output,
+            force=force,
+            use_speakers=use_speakers,
+        )
 
 
 def _resolve_transcription_source(source: Path, repository: LibraryRepository) -> Path:

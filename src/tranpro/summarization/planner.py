@@ -15,7 +15,11 @@ class ContextPlanningError(ValueError):
 def render_segments(segments: Sequence[Segment]) -> str:
     """Render stable references with text for token counting and model input."""
 
-    return "\n".join(f"[{segment.stable_ref}] {segment.text}" for segment in segments)
+    return "\n".join(
+        f"[{segment.stable_ref}] "
+        f"{f'{segment.speaker}: ' if segment.speaker else ''}{segment.text}"
+        for segment in segments
+    )
 
 
 def plan_context(

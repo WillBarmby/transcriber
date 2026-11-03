@@ -3,7 +3,12 @@ from pathlib import Path
 import pytest
 
 from tranpro.library.database import Database
-from tranpro.library.models import Segment, SummarySection
+from tranpro.library.models import (
+    Segment,
+    SpeakerAssignment,
+    SpeakerTurn,
+    SummarySection,
+)
 from tranpro.library.repository import LibraryRepository, RecordNotFoundError
 from tranpro.paths import AppPaths
 
@@ -126,6 +131,62 @@ def test_full_text_search_covers_transcripts_and_summaries(
     assert len(summary_hits) == 1
     assert summary_hits[0].kind == "summary"
     assert summary_hits[0].recording_id == recording.id
+
+
+def test_diarization_runs_are_immutable_preferred_artifacts(
+    repository: LibraryRepository, recording_path: Path
+) -> None:
+    recording, _ = repository.register_recording(recording_path)
+    transcript = repository.add_transcript(
+        recording.id,
+        provider="test",
+        model="asr",
+        segments=[Segment(0, 0, 1_000, "Hello")],
+    )
+    first = repository.begin_diarization(
+        recording.id,
+        provider="test",
+        model="speakers-v1",
+        settings={"threshold": 0.6},
+    )
+    turn = SpeakerTurn(0, 0, 1_000, "Speaker 1", "channel-0", 0.9)
+    assignment = SpeakerAssignment(0, "s000001", "Speaker 1", 1_000, 1.0, "assigned")
+    completed = repository.complete_diarization(
+        first.id,
+        transcript_id=transcript.id,
+        turns=[turn],
+        assignments=[assignment],
+    )
+    second = repository.begin_diarization(
+        recording.id,
+        provider="test",
+        model="speakers-v2",
+    )
+    repository.complete_diarization(
+        second.id,
+        transcript_id=transcript.id,
+        turns=[turn],
+        assignments=[assignment],
+    )
+
+    runs = repository.list_diarizations(recording.id)
+
+    assert completed.status == "succeeded"
+    assert [run.is_preferred for run in runs] == [True, False]
+    assert repository.get_preferred_diarization(recording.id).id == second.id
+    assert repository.get_speaker_turns(first.id) == [turn]
+    assert repository.get_speaker_assignments(first.id, transcript.id) == [assignment]
+    assert repository.get_diarized_segments(first.id, transcript.id)[0].speaker == (
+        "Speaker 1"
+    )
+    reusable = repository.find_reusable_diarization(
+        recording.id,
+        provider="test",
+        model="speakers-v1",
+        settings={"threshold": 0.6},
+    )
+    assert reusable is not None
+    assert reusable.id == first.id
 
 
 def test_forget_hides_recording_and_search_results_until_restore(

@@ -57,6 +57,16 @@ def seed_library(app_paths: AppPaths, tmp_path: Path) -> int:
             )
         ],
     )
+    repository.record_publication(
+        recording_id=recording.id,
+        transcript_id=transcript.id,
+        summary_id=None,
+        provider="google-docs",
+        remote_id="doc-1",
+        remote_url="https://docs.google.com/document/d/doc-1/edit",
+        title="Policy discussion",
+        content_hash="sha256:test",
+    )
     return recording.id
 
 
@@ -105,6 +115,8 @@ def test_list_show_and_search_render_artifact_context(
     assert shown.exit_code == 0
     assert "parakeet-mlx/parakeet-v3 succeeded preferred" in shown.stdout
     assert "ollama/gemma4:12b succeeded prompt=detailed-notes@1" in shown.stdout
+    assert "google-docs succeeded" in shown.stdout
+    assert "https://docs.google.com/document/d/doc-1/edit" in shown.stdout
     assert searched.exit_code == 0
     assert "transcript #1 01:02 · s000001" in searched.stdout
     assert "[Fiscal] [policy]" in searched.stdout

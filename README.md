@@ -10,8 +10,8 @@ audio -> durable transcript -> optional summary -> optional Google Doc
 The Python distribution and import package are named `tranpro`; the command is
 the shorter `tp`.
 
-The current release provides local transcription and the persistent transcript
-library. Summarization and Google Docs publication remain roadmap milestones.
+The current development branch provides local transcription, a persistent
+transcript library, explicit summarization, and optional Google Docs publication.
 
 ## Installation
 
@@ -46,6 +46,10 @@ tp 2 --retranscribe
 tp recording.m4a --retranscribe --live
 tp recording.m4a --no-progress
 tp recording.m4a --trash-source
+tp recording.m4a --summarize
+tp summarize RECORDING_ID
+tp summarize RECORDING_ID --model gemma4:12b
+tp summarize RECORDING_ID --profile openai
 tp paths
 tp config show
 tp config init
@@ -60,6 +64,13 @@ tp show RECORDING_ID
 tp search "budget constraints"
 tp forget RECORDING_ID
 tp restore RECORDING_ID
+tp google setup --credentials ~/Downloads/client_secret.json
+tp google authorize
+tp publish RECORDING_ID
+tp publish RECORDING_ID --open
+tp publish RECORDING_ID --with-summary
+tp publish RECORDING_ID --with-timestamps
+tp publish RECORDING_ID --update
 ```
 
 Library commands use an embedded SQLite database with automatic schema
@@ -71,6 +82,27 @@ SQLite FTS5 across timestamped transcript segments and summary sections. See the
 Prompt commands prepare reusable instructions for the upcoming summary workflow.
 Each save creates an immutable version so an old summary can always identify the
 exact instructions that produced it.
+
+Local summaries use Ollama and structured JSON output. Install Ollama separately,
+start it, and pull the configured model before the first summary. The default is
+`gemma4:12b`; model and effective context can be changed per command or profile.
+Long transcripts automatically use grounded, auditable multi-pass summarization
+without splitting transcript segments or silently truncating input. See the
+[summarization guide](docs/SUMMARIZATION.md).
+
+The opt-in OpenAI summary profile uses `gpt-6.1-terra` through the Responses API
+with strict structured output, actual token accounting, and an estimated standard
+cost stored per step. Set `OPENAI_API_KEY` and pass `--profile openai`; the key is
+never stored in SQLite or `config.toml`. See the [OpenAI profile guide](docs/OPENAI.md).
+
+Google Docs publication is an explicit projection of a saved transcript. By
+default, `tp publish ID` creates a transcript-only Doc with native Google styles;
+`--with-summary` prepends the latest grounded summary. Exact content is reused,
+and an existing Doc changes only when `--update` is supplied. Bring your own
+Google OAuth Desktop credentials; tranpro stores the refresh token in the macOS
+Keychain. Published Docs omit timestamps by default; `--with-timestamps` adds
+them along with summary evidence markers. See the
+[Google Docs guide](docs/GOOGLE_DOCS.md).
 
 Transcription is the default operation. The equivalent explicit form is also
 available:

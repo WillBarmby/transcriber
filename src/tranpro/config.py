@@ -15,18 +15,30 @@ version = 1
 [defaults]
 transcription_profile = "local"
 summary_profile = "local"
+diarization_profile = "local"
 
 [profiles.local]
 transcription_provider = "parakeet-mlx"
 transcription_model = "mlx-community/parakeet-tdt-0.6b-v3"
 summary_provider = "ollama"
 summary_model = "gemma4:12b"
+summary_context_tokens = 65536
+summary_output_tokens = 4096
+diarization_provider = "nemotron-mlx"
+diarization_model = "mlx-community/Nemotron-3-Diarization"
+diarization_preset = "offline"
+diarization_threshold = 0.5
+diarization_min_duration = 0.1
+diarization_merge_gap = 0.1
 
 [profiles.openai]
 transcription_provider = "openai"
 transcription_model = "gpt-transcribe"
 summary_provider = "openai"
 summary_model = "gpt-6.1-terra"
+summary_context_tokens = 272000
+summary_output_tokens = 8192
+reasoning_effort = "none"
 
 [profiles.whisper]
 transcription_provider = "whisper-cpp"
@@ -79,6 +91,26 @@ class Config:
         profile = defaults.get("transcription_profile")
         if not isinstance(profile, str) or not profile:
             raise ConfigError("defaults.transcription_profile must be a profile name")
+        return profile
+
+    @property
+    def default_summary_profile(self) -> str:
+        defaults = self.values.get("defaults")
+        if not isinstance(defaults, dict):
+            raise ConfigError(f"Config has no [defaults] table: {self.path}")
+        profile = defaults.get("summary_profile")
+        if not isinstance(profile, str) or not profile:
+            raise ConfigError("defaults.summary_profile must be a profile name")
+        return profile
+
+    @property
+    def default_diarization_profile(self) -> str:
+        defaults = self.values.get("defaults")
+        if not isinstance(defaults, dict):
+            raise ConfigError(f"Config has no [defaults] table: {self.path}")
+        profile = defaults.get("diarization_profile", "local")
+        if not isinstance(profile, str) or not profile:
+            raise ConfigError("defaults.diarization_profile must be a profile name")
         return profile
 
 

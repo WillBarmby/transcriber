@@ -36,25 +36,25 @@ behavior.
 
 ## 5. Summaries and prompts
 
-- Ollama with Gemma 4 12B as the local default
-- Built-in detailed-notes preset and versioned user prompts
-- Explicit `--summarize` and standalone summarize commands
-- Context feasibility planning and hierarchical fallback
-- Grounded segment references and Markdown rendering
+- Ollama with Gemma 4 12B as the local default (implemented on the PR 6/7 stack)
+- Built-in detailed-notes preset and versioned user prompts (implemented)
+- Explicit `--summarize` and standalone summarize commands (implemented)
+- Context feasibility planning and recursive hierarchical fallback (implemented)
+- Grounded segment references and Markdown rendering (implemented)
 
 ## 6. OpenAI profile
 
-- Hosted transcription with `gpt-transcribe`
-- Hosted summaries with `gpt-6.1-terra`
-- Usage and estimated-cost records
+- Hosted transcription with `gpt-transcribe` (deferred pending an honest timestamp model)
+- Hosted summaries with `gpt-6.1-terra` (implemented on the PR 8 stack)
+- Usage and estimated-cost records (implemented for summaries)
 - Mocked provider tests; no network calls in the test suite
 
 ## 7. Google Docs publication
 
-- Bring-your-own desktop OAuth credentials and Keychain token storage
-- Polished native Google Docs styles
-- Immutable publication snapshots, reuse, and explicit updates
-- Transcript-only and transcript-plus-summary publication
+- Bring-your-own desktop OAuth credentials and Keychain token storage (implemented)
+- Polished native Google Docs styles (implemented)
+- Immutable publication snapshots, reuse, and explicit updates (implemented)
+- Transcript-only and transcript-plus-summary publication (implemented)
 
 ## 8. Release polish
 

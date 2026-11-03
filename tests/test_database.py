@@ -40,6 +40,9 @@ def test_initialize_creates_current_strict_schema(app_paths: AppPaths) -> None:
         "summary_sections",
         "search_index",
         "rendered_outputs",
+        "diarization_runs",
+        "speaker_turns",
+        "diarization_assignments",
     } <= tables
 
 
@@ -84,6 +87,70 @@ def test_version_one_database_is_backed_up_before_output_migration(
             "SELECT name FROM sqlite_master WHERE name = 'rendered_outputs'"
         ).fetchone()
         assert table == ("rendered_outputs",)
+
+
+def test_diarization_provenance_migration_preserves_rendered_outputs(
+    app_paths: AppPaths,
+) -> None:
+    app_paths.data_dir.mkdir(parents=True)
+    with sqlite3.connect(app_paths.database_file) as connection:
+        for version in range(1, 6):
+            connection.executescript(MIGRATIONS[version])
+            connection.execute(
+                "INSERT INTO schema_migrations VALUES (?, ?)",
+                (version, "2026-01-01T00:00:00+00:00"),
+            )
+        connection.execute(
+            """
+            INSERT INTO recordings(
+                id, fingerprint, original_path, current_path, file_size_bytes,
+                created_at, updated_at
+            ) VALUES (
+                1, 'sha256:test', '/tmp/audio.mp3', '/tmp/audio.mp3', 5,
+                'now', 'now'
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO transcript_runs(
+                id, recording_id, provider, model, status, is_preferred, created_at
+            ) VALUES (1, 1, 'test', 'test', 'succeeded', 1, 'now')
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO rendered_outputs(
+                id, recording_id, transcript_id, kind, format, path,
+                content_hash, created_at
+            ) VALUES (
+                1, 1, 1, 'transcript', 'markdown', '/tmp/audio.md',
+                'sha256:content', 'now'
+            )
+            """
+        )
+        connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
+        connection.execute("PRAGMA user_version = 5")
+
+    Database(app_paths).initialize()
+
+    with sqlite3.connect(app_paths.database_file) as connection:
+        row = connection.execute(
+            """
+            SELECT transcript_id, diarization_id, kind, path
+            FROM rendered_outputs WHERE id = 1
+            """
+        ).fetchone()
+        summary_columns = {
+            item[1] for item in connection.execute("PRAGMA table_info(summary_runs)")
+        }
+        publication_columns = {
+            item[1] for item in connection.execute("PRAGMA table_info(publications)")
+        }
+
+    assert row == (1, None, "transcript", "/tmp/audio.md")
+    assert "diarization_id" in summary_columns
+    assert "diarization_id" in publication_columns
 
 
 def test_initialize_refuses_database_from_another_application(

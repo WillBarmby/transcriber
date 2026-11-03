@@ -13,7 +13,7 @@ recordings
 │   └── summary_runs
 │       ├── summary_steps
 │       └── summary_sections
-└── publication records (planned)
+└── publications
 ```
 
 A recording is identified by audio content rather than filename. Registering the
@@ -30,6 +30,12 @@ and context plan used. Multi-pass summaries append their intermediate source and
 synthesis steps before the final sections are sealed. Failed runs retain those
 steps for diagnosis; completed and failed runs cannot be edited back into a new
 result.
+
+Publication rows are immutable local snapshots of a remote projection. They
+record the exact transcript, optional summary, provider, remote document ID,
+URL, title, and content hash used. Republishing identical content reuses its
+existing row and Doc. `tp publish ID --update` changes the latest remote Doc but
+appends a new local publication row, preserving the history of what was sent.
 
 ## Prompts
 

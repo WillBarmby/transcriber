@@ -45,6 +45,37 @@ class TranscriptRun:
 
 
 @dataclass(frozen=True, slots=True)
+class DiarizationRun:
+    id: int
+    recording_id: int
+    provider: str
+    model: str
+    status: str
+    is_preferred: bool
+    created_at: str
+
+
+@dataclass(frozen=True, slots=True)
+class SpeakerTurn:
+    index: int
+    start_ms: int
+    end_ms: int
+    speaker: str
+    source_speaker: str
+    confidence: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SpeakerAssignment:
+    segment_index: int
+    stable_ref: str
+    speaker: str | None
+    overlap_ms: int
+    confidence: float
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
 class PromptTemplate:
     id: int
     name: str
@@ -65,6 +96,7 @@ class SummarySection:
 class SummaryRun:
     id: int
     transcript_id: int
+    diarization_id: int | None
     prompt_name: str
     prompt_version: int
     provider: str
@@ -89,10 +121,27 @@ class RenderedOutput:
     recording_id: int
     transcript_id: int | None
     summary_id: int | None
+    diarization_id: int | None
     kind: str
     format: str
     path: Path
     content_hash: str
+    created_at: str
+
+
+@dataclass(frozen=True, slots=True)
+class Publication:
+    id: int
+    recording_id: int
+    transcript_id: int
+    summary_id: int | None
+    diarization_id: int | None
+    provider: str
+    remote_id: str
+    remote_url: str
+    title: str
+    content_hash: str
+    status: str
     created_at: str
 
 

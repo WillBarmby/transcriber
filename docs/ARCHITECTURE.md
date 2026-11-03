@@ -52,7 +52,9 @@ On macOS, `platformdirs` resolves the application state to:
 
 User-facing Markdown remains beside the source audio unless `--output` says
 otherwise. Provider-managed model caches remain provider-managed. OAuth secrets
-will be stored in the operating-system keychain rather than SQLite or TOML.
+are stored in the operating-system keychain rather than SQLite or TOML. The
+downloaded public OAuth client configuration lives in the private application
+data directory.
 
 The database will use explicit, ordered schema migrations. Before a migration,
 tranpro will make a timestamped SQLite backup. Records are soft-deleted by
@@ -89,11 +91,25 @@ IDs into timestamps and links after validation, so models never invent display
 timestamps.
 
 The context planner is deterministic and provider-independent. Providers supply
-their exact token counter and effective context window; the planner first tests
-the complete rendered input, then greedily groups contiguous transcript segments
-when a hierarchical pass is required. It rejects a single segment that cannot
-fit instead of silently truncating it. The resulting token counts, limits, and
-segment groups are serializable and stored on the summary run.
+their token counter or conservative estimator and effective context window; the
+planner first tests the complete rendered input, then greedily groups contiguous
+transcript segments when a hierarchical pass is required. It rejects a single
+segment that cannot fit instead of silently truncating it. The resulting token
+counts, limits, and segment groups are serializable and stored on the summary
+run. Provider-reported actual usage is stored on each completed step.
+
+## Publications
+
+Publication rendering is provider-independent: a workflow converts a canonical
+transcript and optional summary into styled document blocks, then passes those
+blocks through a Google adapter. Creating a Doc and applying its content is one
+atomic Docs `batchUpdate`; moving it to a requested Drive folder happens after
+the document is complete. A failed new publication is moved to Drive trash on a
+best-effort basis.
+
+Remote documents are projections, not canonical storage. The default publish
+operation is idempotent by content hash. Replacing an existing document requires
+the explicit `--update` flag, and two-way synchronization remains out of scope.
 
 ## Explicit non-goals for version 1
 

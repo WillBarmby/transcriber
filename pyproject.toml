@@ -24,6 +24,10 @@ classifiers = [
   "Topic :: Multimedia :: Sound/Audio :: Speech",
 ]
 dependencies = [
+  "google-api-python-client>=2,<3",
+  "google-auth-oauthlib>=1,<2",
+  "keyring>=25,<26",
+  "openai>=2,<3",
   "parakeet-mlx>=0.6,<0.7; sys_platform == 'darwin' and platform_machine == 'arm64'",
   "platformdirs>=4.3,<5",
   "rich>=13.8,<16",
@@ -32,6 +36,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+diarization = [
+  "mlx-audio>=0.6.2,<0.7; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
 dev = [
   "build>=1.2,<2",
   "mypy>=1.14,<2",
@@ -74,3 +81,22 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.11"
 strict = true
 packages = ["tranpro"]
+
+[[tool.mypy.overrides]]
+module = [
+  "google.auth",
+  "google.auth.*",
+  "google.oauth2",
+  "google.oauth2.*",
+  "google_auth_oauthlib",
+  "google_auth_oauthlib.*",
+  "googleapiclient",
+  "googleapiclient.*",
+  "keyring",
+  "openai",
+  "openai.*",
+  "mlx_audio",
+  "mlx_audio.*",
+]
+follow_imports = "skip"
+ignore_missing_imports = true

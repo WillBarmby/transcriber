@@ -2,7 +2,11 @@ import pytest
 
 from tranpro.library.models import Segment
 from tranpro.summarization.models import ContextWindow
-from tranpro.summarization.planner import ContextPlanningError, plan_context
+from tranpro.summarization.planner import (
+    ContextPlanningError,
+    plan_context,
+    render_segments,
+)
 
 
 def words(text: str) -> int:
@@ -24,6 +28,17 @@ def test_whole_transcript_is_preferred_when_it_fits() -> None:
     assert plan.mode == "whole"
     assert plan.sections[0].segment_refs == ("s000001", "s000002")
     assert plan.sections[0].estimated_input_tokens <= plan.context_window.input_limit
+
+
+def test_rendered_summary_input_includes_available_speaker_labels() -> None:
+    rendered = render_segments(
+        [
+            Segment(0, 0, 1_000, "Welcome.", "Speaker 1"),
+            Segment(1, 1_000, 2_000, "Thanks."),
+        ]
+    )
+
+    assert rendered == "[s000001] Speaker 1: Welcome.\n[s000002] Thanks."
 
 
 def test_long_transcript_splits_only_at_segment_boundaries() -> None:

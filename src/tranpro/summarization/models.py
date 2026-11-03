@@ -57,6 +57,7 @@ class SummaryRequest:
     system_contract: str
     instructions: str
     segments: tuple[Segment, ...]
+    source_notes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
