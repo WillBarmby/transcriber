@@ -8,18 +8,20 @@ import sqlite3
 from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from tranpro.library.database import Database
 from tranpro.library.fingerprint import fingerprint_file
 from tranpro.library.models import (
     LibraryStats,
+    PromptTemplate,
     Recording,
     RenderedOutput,
     SearchHit,
     Segment,
     SummaryRun,
     SummarySection,
+    SummaryStep,
     TranscriptRun,
 )
 
@@ -30,6 +32,9 @@ class LibraryError(RuntimeError):
 
 class RecordNotFoundError(LibraryError):
     """Raised when a requested recording does not exist."""
+
+
+_PROMPT_NAME = re.compile(r"^[a-z][a-z0-9-]*$")
 
 
 def now_iso() -> str:
@@ -288,26 +293,99 @@ class LibraryRepository:
                 for row in rows
             ]
 
-    def add_summary(
+    def save_prompt(self, name: str, instructions: str) -> PromptTemplate:
+        """Save a new immutable version of a user prompt."""
+
+        normalized_name = name.strip().lower()
+        normalized_instructions = instructions.strip()
+        if not _PROMPT_NAME.fullmatch(normalized_name):
+            raise ValueError(
+                "prompt name must start with a letter and contain only "
+                "lowercase letters, numbers, and hyphens"
+            )
+        if not normalized_instructions:
+            raise ValueError("prompt instructions cannot be empty")
+        timestamp = now_iso()
+        with self.database.connect() as connection:
+            latest = connection.execute(
+                "SELECT max(version) AS version FROM prompts WHERE name = ?",
+                (normalized_name,),
+            ).fetchone()
+            assert latest is not None
+            version = int(latest["version"] or 0) + 1
+            cursor = connection.execute(
+                """
+                INSERT INTO prompts(name, version, instructions, is_builtin, created_at)
+                VALUES (?, ?, ?, 0, ?)
+                """,
+                (normalized_name, version, normalized_instructions, timestamp),
+            )
+            assert cursor.lastrowid is not None
+            row = connection.execute(
+                "SELECT * FROM prompts WHERE id = ?", (cursor.lastrowid,)
+            ).fetchone()
+            assert row is not None
+            return self._prompt(row)
+
+    def get_prompt(self, name: str, version: int | None = None) -> PromptTemplate:
+        """Return an exact prompt version, or the latest version by name."""
+
+        with self.database.connect() as connection:
+            if version is None:
+                row = connection.execute(
+                    """
+                    SELECT * FROM prompts WHERE name = ?
+                    ORDER BY version DESC LIMIT 1
+                    """,
+                    (name,),
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT * FROM prompts WHERE name = ? AND version = ?",
+                    (name, version),
+                ).fetchone()
+            if row is None:
+                suffix = "" if version is None else f"@{version}"
+                raise LibraryError(f"Prompt {name}{suffix} was not found")
+            return self._prompt(row)
+
+    def list_prompts(self, *, all_versions: bool = False) -> list[PromptTemplate]:
+        """List latest prompt versions unless full history is requested."""
+
+        with self.database.connect() as connection:
+            if all_versions:
+                rows = connection.execute(
+                    "SELECT * FROM prompts ORDER BY name, version DESC"
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    """
+                    SELECT prompt.* FROM prompts AS prompt
+                    JOIN (
+                        SELECT name, max(version) AS version
+                        FROM prompts GROUP BY name
+                    ) AS latest
+                      ON latest.name = prompt.name
+                     AND latest.version = prompt.version
+                    ORDER BY prompt.name
+                    """
+                ).fetchall()
+            return [self._prompt(row) for row in rows]
+
+    def begin_summary(
         self,
         transcript_id: int,
         *,
+        prompt: PromptTemplate,
+        system_contract: str,
         provider: str,
         model: str,
-        sections: Iterable[SummarySection],
-        prompt_name: str = "detailed-notes",
-        prompt_version: int = 1,
-        prompt_instructions: str = "Create detailed notes.",
-        system_contract: str = "Return grounded structured notes.",
-    ) -> int:
-        """Atomically add one successful, immutable summary run."""
+        settings: Mapping[str, Any] | None = None,
+        context_plan: Mapping[str, Any] | None = None,
+    ) -> SummaryRun:
+        """Create a running summary with frozen prompt and planning inputs."""
 
         timestamp = now_iso()
-        materialized_sections = list(sections)
-        if not materialized_sections:
-            raise ValueError("a successful summary requires at least one section")
-        if any(not section.body.strip() for section in materialized_sections):
-            raise ValueError("summary sections must contain body text")
         with self.database.connect() as connection:
             transcript = connection.execute(
                 "SELECT id FROM transcript_runs WHERE id = ?", (transcript_id,)
@@ -317,26 +395,137 @@ class LibraryRepository:
             cursor = connection.execute(
                 """
                 INSERT INTO summary_runs(
-                    transcript_id, prompt_name, prompt_version,
+                    transcript_id, prompt_id, prompt_name, prompt_version,
                     prompt_instructions, system_contract, provider, model,
-                    status, started_at, completed_at, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'succeeded', ?, ?, ?)
+                    settings_json, context_plan_json, status, started_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?)
                 """,
                 (
                     transcript_id,
-                    prompt_name,
-                    prompt_version,
-                    prompt_instructions,
+                    prompt.id,
+                    prompt.name,
+                    prompt.version,
+                    prompt.instructions,
                     system_contract,
                     provider,
                     model,
-                    timestamp,
+                    self._canonical_json(settings or {}),
+                    (
+                        None
+                        if context_plan is None
+                        else self._canonical_json(context_plan)
+                    ),
                     timestamp,
                     timestamp,
                 ),
             )
             assert cursor.lastrowid is not None
-            summary_id = int(cursor.lastrowid)
+            row = connection.execute(
+                "SELECT * FROM summary_runs WHERE id = ?", (cursor.lastrowid,)
+            ).fetchone()
+            assert row is not None
+            return self._summary(row)
+
+    def add_summary_step(
+        self,
+        summary_id: int,
+        *,
+        kind: str,
+        output_text: str,
+        input_segment_refs: Iterable[str] = (),
+        input_step_indexes: Iterable[int] = (),
+        usage: Mapping[str, int | float] | None = None,
+    ) -> SummaryStep:
+        """Append an auditable intermediate result to a running summary."""
+
+        if kind not in {"source", "synthesis"}:
+            raise ValueError("summary step kind must be source or synthesis")
+        if not output_text.strip():
+            raise ValueError("summary step output cannot be empty")
+        segment_refs = tuple(input_segment_refs)
+        step_indexes = tuple(input_step_indexes)
+        timestamp = now_iso()
+        with self.database.connect() as connection:
+            summary = connection.execute(
+                "SELECT status FROM summary_runs WHERE id = ?", (summary_id,)
+            ).fetchone()
+            if summary is None:
+                raise LibraryError(f"Summary {summary_id} was not found")
+            if summary["status"] != "running":
+                raise LibraryError(
+                    "summary steps can only be added to a running summary"
+                )
+            next_row = connection.execute(
+                """
+                SELECT coalesce(max(step_index), -1) + 1 AS step_index
+                FROM summary_steps WHERE summary_id = ?
+                """,
+                (summary_id,),
+            ).fetchone()
+            assert next_row is not None
+            index = int(next_row["step_index"])
+            connection.execute(
+                """
+                INSERT INTO summary_steps(
+                    summary_id, step_index, kind, input_segment_refs_json,
+                    input_step_indexes_json, output_text, usage_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    summary_id,
+                    index,
+                    kind,
+                    self._canonical_json(segment_refs),
+                    self._canonical_json(step_indexes),
+                    output_text.strip(),
+                    self._canonical_json(usage or {}),
+                    timestamp,
+                ),
+            )
+            return SummaryStep(
+                index=index,
+                kind=kind,
+                input_segment_refs=segment_refs,
+                input_step_indexes=step_indexes,
+                output_text=output_text.strip(),
+                usage=dict(usage or {}),
+            )
+
+    def complete_summary(
+        self, summary_id: int, sections: Iterable[SummarySection]
+    ) -> SummaryRun:
+        """Atomically attach final sections and seal a running summary."""
+
+        materialized = list(sections)
+        if not materialized:
+            raise ValueError("a successful summary requires at least one section")
+        if any(
+            not section.heading.strip() or not section.body.strip()
+            for section in materialized
+        ):
+            raise ValueError("summary sections require a heading and body")
+        timestamp = now_iso()
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM summary_runs WHERE id = ?", (summary_id,)
+            ).fetchone()
+            if row is None:
+                raise LibraryError(f"Summary {summary_id} was not found")
+            if row["status"] != "running":
+                raise LibraryError("only a running summary can be completed")
+            known_rows = connection.execute(
+                "SELECT stable_ref FROM transcript_segments WHERE transcript_id = ?",
+                (int(row["transcript_id"]),),
+            ).fetchall()
+            known_refs = {str(item["stable_ref"]) for item in known_rows}
+            cited_refs = {
+                ref for section in materialized for ref in section.segment_refs
+            }
+            unknown = sorted(cited_refs - known_refs)
+            if unknown:
+                raise ValueError(
+                    f"unknown transcript segment references: {', '.join(unknown)}"
+                )
             connection.executemany(
                 """
                 INSERT INTO summary_sections(
@@ -347,14 +536,150 @@ class LibraryRepository:
                     (
                         summary_id,
                         index,
-                        section.heading,
-                        section.body,
+                        section.heading.strip(),
+                        section.body.strip(),
                         self._canonical_json(section.segment_refs),
                     )
-                    for index, section in enumerate(materialized_sections)
+                    for index, section in enumerate(materialized)
                 ],
             )
-            return summary_id
+            connection.execute(
+                """
+                UPDATE summary_runs
+                SET status = 'succeeded', completed_at = ?
+                WHERE id = ?
+                """,
+                (timestamp, summary_id),
+            )
+            completed = connection.execute(
+                "SELECT * FROM summary_runs WHERE id = ?", (summary_id,)
+            ).fetchone()
+            assert completed is not None
+            return self._summary(completed)
+
+    def fail_summary(self, summary_id: int, error: str) -> SummaryRun:
+        """Seal a running summary as failed while retaining its audit trail."""
+
+        timestamp = now_iso()
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE summary_runs
+                SET status = 'failed', error = ?, completed_at = ?
+                WHERE id = ? AND status = 'running'
+                """,
+                (error, timestamp, summary_id),
+            )
+            if cursor.rowcount == 0:
+                raise LibraryError(f"Running summary {summary_id} was not found")
+            row = connection.execute(
+                "SELECT * FROM summary_runs WHERE id = ?", (summary_id,)
+            ).fetchone()
+            assert row is not None
+            return self._summary(row)
+
+    def add_summary(
+        self,
+        transcript_id: int,
+        *,
+        provider: str,
+        model: str,
+        sections: Iterable[SummarySection],
+        prompt_name: str = "detailed-notes",
+        prompt_version: int = 1,
+        prompt_instructions: str | None = None,
+        system_contract: str = "Return grounded structured notes.",
+        settings: Mapping[str, Any] | None = None,
+        context_plan: Mapping[str, Any] | None = None,
+    ) -> int:
+        """Create and complete a summary run for simple adapter callers."""
+
+        materialized_sections = list(sections)
+        saved_prompt = self.get_prompt(prompt_name, prompt_version)
+        if (
+            prompt_instructions is not None
+            and prompt_instructions.strip() != saved_prompt.instructions
+        ):
+            raise ValueError(
+                "prompt instructions do not match the saved prompt version; "
+                "save a new prompt version first"
+            )
+        run = self.begin_summary(
+            transcript_id,
+            prompt=saved_prompt,
+            system_contract=system_contract,
+            provider=provider,
+            model=model,
+            settings=settings,
+            context_plan=context_plan,
+        )
+        return self.complete_summary(run.id, materialized_sections).id
+
+    def get_summary(self, summary_id: int) -> SummaryRun:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM summary_runs WHERE id = ?", (summary_id,)
+            ).fetchone()
+            if row is None:
+                raise LibraryError(f"Summary {summary_id} was not found")
+            return self._summary(row)
+
+    def get_summary_sections(self, summary_id: int) -> list[SummarySection]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM summary_sections
+                WHERE summary_id = ? ORDER BY section_index
+                """,
+                (summary_id,),
+            ).fetchall()
+            if not rows:
+                exists = connection.execute(
+                    "SELECT id FROM summary_runs WHERE id = ?", (summary_id,)
+                ).fetchone()
+                if exists is None:
+                    raise LibraryError(f"Summary {summary_id} was not found")
+            return [
+                SummarySection(
+                    heading=str(row["heading"]),
+                    body=str(row["body"]),
+                    segment_refs=tuple(
+                        cast(list[str], json.loads(row["segment_refs_json"]))
+                    ),
+                )
+                for row in rows
+            ]
+
+    def get_summary_steps(self, summary_id: int) -> list[SummaryStep]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM summary_steps
+                WHERE summary_id = ? ORDER BY step_index
+                """,
+                (summary_id,),
+            ).fetchall()
+            if not rows:
+                exists = connection.execute(
+                    "SELECT id FROM summary_runs WHERE id = ?", (summary_id,)
+                ).fetchone()
+                if exists is None:
+                    raise LibraryError(f"Summary {summary_id} was not found")
+            return [
+                SummaryStep(
+                    index=int(row["step_index"]),
+                    kind=str(row["kind"]),
+                    input_segment_refs=tuple(
+                        cast(list[str], json.loads(row["input_segment_refs_json"]))
+                    ),
+                    input_step_indexes=tuple(
+                        cast(list[int], json.loads(row["input_step_indexes_json"]))
+                    ),
+                    output_text=str(row["output_text"]),
+                    usage=cast(dict[str, int | float], json.loads(row["usage_json"])),
+                )
+                for row in rows
+            ]
 
     def list_summaries(self, recording_id: int) -> list[SummaryRun]:
         with self.database.connect() as connection:
@@ -647,6 +972,17 @@ class LibraryRepository:
             status=str(row["status"]),
             language=None if row["language"] is None else str(row["language"]),
             is_preferred=bool(row["is_preferred"]),
+            created_at=str(row["created_at"]),
+        )
+
+    @staticmethod
+    def _prompt(row: sqlite3.Row) -> PromptTemplate:
+        return PromptTemplate(
+            id=int(row["id"]),
+            name=str(row["name"]),
+            version=int(row["version"]),
+            instructions=str(row["instructions"]),
+            is_builtin=bool(row["is_builtin"]),
             created_at=str(row["created_at"]),
         )
 

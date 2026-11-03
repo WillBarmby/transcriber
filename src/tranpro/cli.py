@@ -37,6 +37,7 @@ from tranpro.library.cli import (
 from tranpro.library.database import Database, DatabaseError
 from tranpro.library.repository import LibraryError, LibraryRepository
 from tranpro.paths import AppPaths
+from tranpro.summarization.cli import prompt_app
 from tranpro.transcription.factory import build_provider
 from tranpro.transcription.models import (
     TranscriptionError,
@@ -157,6 +158,7 @@ config_app = typer.Typer(
 )
 app.add_typer(config_app, name="config")
 app.add_typer(library_app, name="library")
+app.add_typer(prompt_app, name="prompt")
 app.command("list")(list_recordings)
 app.command("show")(show_recording)
 app.command("search")(search_library)

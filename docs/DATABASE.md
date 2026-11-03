@@ -11,6 +11,7 @@ recordings
 ├── transcript_runs
 │   ├── transcript_segments
 │   └── summary_runs
+│       ├── summary_steps
 │       └── summary_sections
 └── publication records (planned)
 ```
@@ -23,6 +24,27 @@ overwriting an earlier result.
 Transcript segments receive stable references such as `s000001`. Summary
 sections preserve the segment references used as evidence, allowing renderers to
 add grounded timestamps later without asking a language model to invent them.
+
+Summary runs freeze the exact prompt instructions, provider, model, settings,
+and context plan used. Multi-pass summaries append their intermediate source and
+synthesis steps before the final sections are sealed. Failed runs retain those
+steps for diagnosis; completed and failed runs cannot be edited back into a new
+result.
+
+## Prompts
+
+`tp prompt list` shows the latest version of each reusable prompt. The built-in
+`detailed-notes` prompt asks for an overview, key arguments, key terms, new
+concepts, and sources cited or mentioned. User prompts are append-only versions:
+
+```shell
+tp prompt save lecture-notes --file prompt.md
+tp prompt show lecture-notes
+tp prompt list --all
+```
+
+Saving the same name again creates `lecture-notes@2`; it does not change runs
+that used `lecture-notes@1`.
 
 ## Schema changes and backups
 
