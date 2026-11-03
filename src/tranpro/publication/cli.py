@@ -85,6 +85,13 @@ def publish_google_doc(
             help="Include transcript timestamps and summary evidence markers.",
         ),
     ] = False,
+    without_speakers: Annotated[
+        bool,
+        typer.Option(
+            "--without-speakers",
+            help="Ignore an existing diarization and publish the plain transcript.",
+        ),
+    ] = False,
     update: Annotated[
         bool,
         typer.Option("--update", help="Replace the latest published Doc explicitly."),
@@ -109,6 +116,7 @@ def publish_google_doc(
             recording_id,
             with_summary=with_summary,
             with_timestamps=with_timestamps,
+            with_speakers=not without_speakers,
             update=update,
             title=title,
             folder_id=folder_id,
