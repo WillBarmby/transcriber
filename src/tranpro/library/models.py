@@ -96,6 +96,7 @@ class SummarySection:
 class SummaryRun:
     id: int
     transcript_id: int
+    diarization_id: int | None
     prompt_name: str
     prompt_version: int
     provider: str
@@ -120,6 +121,7 @@ class RenderedOutput:
     recording_id: int
     transcript_id: int | None
     summary_id: int | None
+    diarization_id: int | None
     kind: str
     format: str
     path: Path
@@ -133,6 +135,7 @@ class Publication:
     recording_id: int
     transcript_id: int
     summary_id: int | None
+    diarization_id: int | None
     provider: str
     remote_id: str
     remote_url: str

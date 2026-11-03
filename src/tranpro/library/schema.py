@@ -343,6 +343,58 @@ MIGRATIONS: dict[int, str] = {
         CREATE INDEX diarization_assignments_transcript_idx
             ON diarization_assignments(transcript_id, diarization_id);
     """,
+    6: """
+        ALTER TABLE summary_runs ADD COLUMN diarization_id INTEGER
+            REFERENCES diarization_runs(id) ON DELETE SET NULL;
+        CREATE INDEX summary_runs_diarization_idx
+            ON summary_runs(diarization_id, created_at DESC);
+
+        ALTER TABLE publications ADD COLUMN diarization_id INTEGER
+            REFERENCES diarization_runs(id) ON DELETE SET NULL;
+        CREATE INDEX publications_diarization_idx
+            ON publications(diarization_id, created_at DESC);
+
+        ALTER TABLE rendered_outputs RENAME TO rendered_outputs_old;
+
+        CREATE TABLE rendered_outputs (
+            id INTEGER PRIMARY KEY,
+            recording_id INTEGER NOT NULL
+                REFERENCES recordings(id) ON DELETE CASCADE,
+            transcript_id INTEGER REFERENCES transcript_runs(id) ON DELETE CASCADE,
+            summary_id INTEGER REFERENCES summary_runs(id) ON DELETE CASCADE,
+            diarization_id INTEGER
+                REFERENCES diarization_runs(id) ON DELETE CASCADE,
+            kind TEXT NOT NULL
+                CHECK (kind IN ('transcript', 'diarized', 'summary', 'collated')),
+            format TEXT NOT NULL,
+            path TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            CHECK (
+                transcript_id IS NOT NULL OR summary_id IS NOT NULL
+                OR diarization_id IS NOT NULL
+            ),
+            UNIQUE (path)
+        ) STRICT;
+
+        INSERT INTO rendered_outputs(
+            id, recording_id, transcript_id, summary_id, diarization_id,
+            kind, format, path, content_hash, created_at
+        )
+        SELECT
+            id, recording_id, transcript_id, summary_id, NULL,
+            kind, format, path, content_hash, created_at
+        FROM rendered_outputs_old;
+
+        DROP TABLE rendered_outputs_old;
+
+        CREATE INDEX rendered_outputs_recording_idx
+            ON rendered_outputs(recording_id, created_at DESC);
+        CREATE INDEX rendered_outputs_transcript_idx
+            ON rendered_outputs(transcript_id, created_at DESC);
+        CREATE INDEX rendered_outputs_diarization_idx
+            ON rendered_outputs(diarization_id, created_at DESC);
+    """,
 }
 
 LATEST_SCHEMA_VERSION = max(MIGRATIONS)

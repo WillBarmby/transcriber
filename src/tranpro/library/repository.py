@@ -541,6 +541,38 @@ class LibraryRepository:
                 )
             return self._diarization(row)
 
+    def find_preferred_diarization(
+        self, recording_id: int, *, transcript_id: int | None = None
+    ) -> DiarizationRun | None:
+        """Return the preferred run, optionally requiring a complete projection."""
+
+        with self.database.connect() as connection:
+            self._require_recording(connection, recording_id)
+            parameters: list[int] = [recording_id]
+            projection = ""
+            if transcript_id is not None:
+                projection = """
+                    AND (
+                        SELECT count(*) FROM diarization_assignments AS da
+                        WHERE da.diarization_id = diarization_runs.id
+                          AND da.transcript_id = ?
+                    ) = (
+                        SELECT count(*) FROM transcript_segments AS ts
+                        WHERE ts.transcript_id = ?
+                    )
+                """
+                parameters.extend((transcript_id, transcript_id))
+            row = connection.execute(
+                f"""
+                SELECT * FROM diarization_runs
+                WHERE recording_id = ? AND is_preferred = 1
+                {projection}
+                ORDER BY created_at DESC, id DESC LIMIT 1
+                """,
+                parameters,
+            ).fetchone()
+            return None if row is None else self._diarization(row)
+
     def list_diarizations(self, recording_id: int) -> list[DiarizationRun]:
         with self.database.connect() as connection:
             self._require_recording(connection, recording_id)
@@ -715,6 +747,7 @@ class LibraryRepository:
         system_contract: str,
         provider: str,
         model: str,
+        diarization_id: int | None = None,
         settings: Mapping[str, Any] | None = None,
         context_plan: Mapping[str, Any] | None = None,
     ) -> SummaryRun:
@@ -723,20 +756,30 @@ class LibraryRepository:
         timestamp = now_iso()
         with self.database.connect() as connection:
             transcript = connection.execute(
-                "SELECT id FROM transcript_runs WHERE id = ?", (transcript_id,)
+                "SELECT id, recording_id FROM transcript_runs WHERE id = ?",
+                (transcript_id,),
             ).fetchone()
             if transcript is None:
                 raise LibraryError(f"Transcript {transcript_id} was not found")
+            if diarization_id is not None:
+                self._require_diarization_projection(
+                    connection,
+                    diarization_id=diarization_id,
+                    transcript_id=transcript_id,
+                    recording_id=int(transcript["recording_id"]),
+                )
             cursor = connection.execute(
                 """
                 INSERT INTO summary_runs(
-                    transcript_id, prompt_id, prompt_name, prompt_version,
+                    transcript_id, diarization_id, prompt_id, prompt_name,
+                    prompt_version,
                     prompt_instructions, system_contract, provider, model,
                     settings_json, context_plan_json, status, started_at, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?)
                 """,
                 (
                     transcript_id,
+                    diarization_id,
                     prompt.id,
                     prompt.name,
                     prompt.version,
@@ -1055,6 +1098,7 @@ class LibraryRepository:
         recording_id: int,
         transcript_id: int,
         summary_id: int | None,
+        diarization_id: int | None = None,
         provider: str,
         remote_id: str,
         remote_url: str,
@@ -1091,18 +1135,26 @@ class LibraryRepository:
                         f"Summary {summary_id} does not belong to transcript "
                         f"{transcript_id}"
                     )
+            if diarization_id is not None:
+                self._require_diarization_projection(
+                    connection,
+                    diarization_id=diarization_id,
+                    transcript_id=transcript_id,
+                    recording_id=recording_id,
+                )
             cursor = connection.execute(
                 """
                 INSERT INTO publications(
-                    recording_id, transcript_id, summary_id, provider,
+                    recording_id, transcript_id, summary_id, diarization_id, provider,
                     remote_id, remote_url, title, content_hash, status,
                     error, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     recording_id,
                     transcript_id,
                     summary_id,
+                    diarization_id,
                     provider,
                     remote_id,
                     remote_url,
@@ -1171,6 +1223,7 @@ class LibraryRepository:
         recording_id: int,
         transcript_id: int | None,
         summary_id: int | None,
+        diarization_id: int | None = None,
         kind: str,
         format: str,
         path: Path,
@@ -1187,6 +1240,7 @@ class LibraryRepository:
                 if (
                     existing["transcript_id"] == transcript_id
                     and existing["summary_id"] == summary_id
+                    and existing["diarization_id"] == diarization_id
                     and existing["content_hash"] == content_hash
                 ):
                     return self._rendered_output(existing)
@@ -1195,13 +1249,15 @@ class LibraryRepository:
                         """
                         UPDATE rendered_outputs
                         SET recording_id = ?, transcript_id = ?, summary_id = ?,
-                            kind = ?, format = ?, content_hash = ?, created_at = ?
+                            diarization_id = ?, kind = ?, format = ?,
+                            content_hash = ?, created_at = ?
                         WHERE id = ?
                         """,
                         (
                             recording_id,
                             transcript_id,
                             summary_id,
+                            diarization_id,
                             kind,
                             format,
                             content_hash,
@@ -1219,14 +1275,16 @@ class LibraryRepository:
             cursor = connection.execute(
                 """
                 INSERT INTO rendered_outputs(
-                    recording_id, transcript_id, summary_id, kind, format,
+                    recording_id, transcript_id, summary_id, diarization_id,
+                    kind, format,
                     path, content_hash, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     recording_id,
                     transcript_id,
                     summary_id,
+                    diarization_id,
                     kind,
                     format,
                     str(resolved_path),
@@ -1494,6 +1552,37 @@ class LibraryRepository:
         )
 
     @staticmethod
+    def _require_diarization_projection(
+        connection: sqlite3.Connection,
+        *,
+        diarization_id: int,
+        transcript_id: int,
+        recording_id: int,
+    ) -> None:
+        row = connection.execute(
+            """
+            SELECT dr.recording_id,
+                   (SELECT count(*) FROM diarization_assignments AS da
+                    WHERE da.diarization_id = dr.id
+                      AND da.transcript_id = ?) AS assigned,
+                   (SELECT count(*) FROM transcript_segments AS ts
+                    WHERE ts.transcript_id = ?) AS segments
+            FROM diarization_runs AS dr
+            WHERE dr.id = ? AND dr.status = 'succeeded'
+            """,
+            (transcript_id, transcript_id, diarization_id),
+        ).fetchone()
+        if (
+            row is None
+            or int(row["recording_id"]) != recording_id
+            or int(row["assigned"]) != int(row["segments"])
+        ):
+            raise LibraryError(
+                f"Diarization {diarization_id} is not aligned to transcript "
+                f"{transcript_id}"
+            )
+
+    @staticmethod
     def _require_recording(connection: sqlite3.Connection, recording_id: int) -> None:
         row = connection.execute(
             "SELECT id FROM recordings WHERE id = ?", (recording_id,)
@@ -1558,6 +1647,9 @@ class LibraryRepository:
         return SummaryRun(
             id=int(row["id"]),
             transcript_id=int(row["transcript_id"]),
+            diarization_id=(
+                None if row["diarization_id"] is None else int(row["diarization_id"])
+            ),
             prompt_name=str(row["prompt_name"]),
             prompt_version=int(row["prompt_version"]),
             provider=str(row["provider"]),
@@ -1575,6 +1667,9 @@ class LibraryRepository:
                 None if row["transcript_id"] is None else int(row["transcript_id"])
             ),
             summary_id=None if row["summary_id"] is None else int(row["summary_id"]),
+            diarization_id=(
+                None if row["diarization_id"] is None else int(row["diarization_id"])
+            ),
             kind=str(row["kind"]),
             format=str(row["format"]),
             path=Path(row["path"]),
@@ -1589,6 +1684,9 @@ class LibraryRepository:
             recording_id=int(row["recording_id"]),
             transcript_id=int(row["transcript_id"]),
             summary_id=None if row["summary_id"] is None else int(row["summary_id"]),
+            diarization_id=(
+                None if row["diarization_id"] is None else int(row["diarization_id"])
+            ),
             provider=str(row["provider"]),
             remote_id=str(row["remote_id"]),
             remote_url=str(row["remote_url"]),
