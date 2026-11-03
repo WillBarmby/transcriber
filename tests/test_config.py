@@ -24,7 +24,9 @@ def test_profile_access_and_default_name(app_paths: AppPaths) -> None:
 
     assert config.default_transcription_profile == "local"
     assert config.default_summary_profile == "local"
+    assert config.default_diarization_profile == "local"
     assert config.profile("local")["transcription_provider"] == "parakeet-mlx"
+    assert config.profile("local")["diarization_provider"] == "nemotron-mlx"
     assert config.profile("local")["summary_context_tokens"] == 65_536
 
 

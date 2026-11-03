@@ -36,6 +36,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+diarization = [
+  "mlx-audio>=0.6.2,<0.7; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
 dev = [
   "build>=1.2,<2",
   "mypy>=1.14,<2",
@@ -92,6 +95,8 @@ module = [
   "keyring",
   "openai",
   "openai.*",
+  "mlx_audio",
+  "mlx_audio.*",
 ]
 follow_imports = "skip"
 ignore_missing_imports = true
