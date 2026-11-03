@@ -18,6 +18,7 @@ class DiarizationOutcome:
     provider: str
     model: str
     turns: int
+    speakers: int
     segments: tuple[Segment, ...]
     reused: bool
 
@@ -90,13 +91,15 @@ class DiarizationService:
             segments = tuple(
                 self.repository.get_diarized_segments(reusable.id, transcript.id)
             )
+            reused_turns = self.repository.get_speaker_turns(reusable.id)
             return DiarizationOutcome(
                 recording_id=recording_id,
                 transcript_id=transcript.id,
                 diarization_id=reusable.id,
                 provider=reusable.provider,
                 model=reusable.model,
-                turns=len(self.repository.get_speaker_turns(reusable.id)),
+                turns=len(reused_turns),
+                speakers=len({turn.speaker for turn in reused_turns}),
                 segments=segments,
                 reused=True,
             )
@@ -137,6 +140,7 @@ class DiarizationService:
             provider=completed.provider,
             model=completed.model,
             turns=len(normalized_turns),
+            speakers=len({turn.speaker for turn in normalized_turns}),
             segments=segments,
             reused=False,
         )

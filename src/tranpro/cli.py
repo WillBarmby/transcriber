@@ -25,6 +25,7 @@ from typer.core import TyperGroup
 
 from tranpro import __version__
 from tranpro.config import DEFAULT_CONFIG, Config, ConfigError, initialize_config
+from tranpro.diarization.cli import diarize_recording
 from tranpro.library.cli import (
     forget_recording,
     library_app,
@@ -166,6 +167,7 @@ app.add_typer(library_app, name="library")
 app.add_typer(prompt_app, name="prompt")
 app.add_typer(google_app, name="google")
 app.command("publish")(publish_google_doc)
+app.command("diarize")(diarize_recording)
 app.command("list")(list_recordings)
 app.command("show")(show_recording)
 app.command("search")(search_library)
