@@ -67,6 +67,7 @@ tp restore RECORDING_ID
 tp google setup --credentials ~/Downloads/client_secret.json
 tp google authorize
 tp publish RECORDING_ID
+tp publish RECORDING_ID --open
 tp publish RECORDING_ID --with-summary
 tp publish RECORDING_ID --with-timestamps
 tp publish RECORDING_ID --update

@@ -103,6 +103,10 @@ def publish_google_doc(
         str | None,
         typer.Option("--folder", help="Google Drive destination folder ID."),
     ] = None,
+    open_document: Annotated[
+        bool,
+        typer.Option("--open", help="Open the published Doc in your browser."),
+    ] = False,
 ) -> None:
     """Publish a transcript snapshot to a polished Google Doc."""
 
@@ -133,6 +137,8 @@ def publish_google_doc(
     action = "Reused" if outcome.reused else "Updated" if outcome.updated else "Created"
     typer.echo(f"{action} publication {outcome.publication_id}")
     typer.echo(outcome.url)
+    if open_document and typer.launch(outcome.url) != 0:
+        typer.echo("Could not open the browser. Open the URL above manually.", err=True)
 
 
 def _fail(message: str) -> None:
