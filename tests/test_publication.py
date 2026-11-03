@@ -3,7 +3,12 @@ from pathlib import Path
 import pytest
 
 from tranpro.library.database import Database
-from tranpro.library.models import Segment, SummarySection
+from tranpro.library.models import (
+    Segment,
+    SpeakerAssignment,
+    SpeakerTurn,
+    SummarySection,
+)
 from tranpro.library.repository import LibraryRepository
 from tranpro.paths import AppPaths
 from tranpro.publication.models import DocumentBlock, DocumentContent, RemoteDocument
@@ -140,3 +145,29 @@ def test_publication_can_include_summary_for_same_transcript(
     assert outcome.reused is False
     assert "Overview" in publisher.created[0].plain_text
     assert repository.list_publications(1)[0].summary_id == 1
+
+
+def test_publication_uses_preferred_diarization_unless_disabled(
+    seeded: tuple[LibraryRepository, Path, int],
+) -> None:
+    repository, _, transcript_id = seeded
+    diarization = repository.begin_diarization(1, provider="test", model="speakers")
+    repository.complete_diarization(
+        diarization.id,
+        transcript_id=transcript_id,
+        turns=[SpeakerTurn(0, 5_000, 6_000, "Speaker 1", "raw-0")],
+        assignments=[
+            SpeakerAssignment(0, "s000001", "Speaker 1", 1_000, 1.0, "assigned")
+        ],
+    )
+    publisher = FakePublisher()
+    service = PublicationService(publisher=publisher, repository=repository)
+
+    with_speakers = service.publish(1)
+    service.publish(1, with_speakers=False)
+
+    assert "Speaker 1: A grounded statement." in publisher.created[0].plain_text
+    assert "Host: A grounded statement." in publisher.created[1].plain_text
+    publication = repository.list_publications(1)[1]
+    assert publication.id == with_speakers.publication_id
+    assert publication.diarization_id == diarization.id

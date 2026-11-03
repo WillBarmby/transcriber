@@ -65,6 +65,7 @@ def test_diarize_command_creates_and_reuses_run(
     assert first.exit_code == 0
     assert "Created diarization 1" in first.stdout
     assert "1 speaker, 1 turn" in first.stdout
+    assert "Markdown:" in first.stdout
     assert second.exit_code == 0
     assert "Reused diarization 1" in second.stdout
     assert provider.calls == 1

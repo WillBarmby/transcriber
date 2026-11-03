@@ -5,7 +5,12 @@ from pathlib import Path
 import pytest
 
 from tranpro.library.database import Database
-from tranpro.library.models import Segment, SummarySection
+from tranpro.library.models import (
+    Segment,
+    SpeakerAssignment,
+    SpeakerTurn,
+    SummarySection,
+)
 from tranpro.library.repository import LibraryRepository
 from tranpro.paths import AppPaths
 from tranpro.summarization.models import (
@@ -97,6 +102,64 @@ def test_summary_service_persists_and_renders_grounded_result(
     assert "00:01 (s000002)" in outcome.markdown
     assert repository.get_summary(outcome.summary_id).status == "succeeded"
     assert len(repository.get_summary_steps(outcome.summary_id)) == 1
+
+
+def test_summary_automatically_uses_and_records_preferred_diarization(
+    seeded: tuple[LibraryRepository, Path, int],
+) -> None:
+    repository, _, transcript_id = seeded
+    transcript = repository.get_transcript(transcript_id)
+    diarization = repository.begin_diarization(
+        transcript.recording_id, provider="test", model="speakers"
+    )
+    turns = [SpeakerTurn(0, 0, 2_000, "Speaker 1", "raw-0")]
+    assignments = [
+        SpeakerAssignment(0, "s000001", "Speaker 1", 1_000, 1.0, "assigned"),
+        SpeakerAssignment(1, "s000002", "Speaker 1", 1_000, 1.0, "assigned"),
+    ]
+    repository.complete_diarization(
+        diarization.id,
+        transcript_id=transcript_id,
+        turns=turns,
+        assignments=assignments,
+    )
+    provider = FakeProvider()
+
+    outcome = SummaryService(provider=provider, repository=repository).run(
+        transcript_id
+    )
+
+    assert provider.requests[0].segments[0].speaker == "Speaker 1"
+    assert outcome.diarization_id == diarization.id
+    assert repository.get_summary(outcome.summary_id).diarization_id == diarization.id
+    assert "diarization_id: 1" in outcome.markdown
+
+
+def test_summary_can_explicitly_ignore_preferred_diarization(
+    seeded: tuple[LibraryRepository, Path, int],
+) -> None:
+    repository, _, transcript_id = seeded
+    transcript = repository.get_transcript(transcript_id)
+    diarization = repository.begin_diarization(
+        transcript.recording_id, provider="test", model="speakers"
+    )
+    repository.complete_diarization(
+        diarization.id,
+        transcript_id=transcript_id,
+        turns=[SpeakerTurn(0, 0, 2_000, "Speaker 1", "raw-0")],
+        assignments=[
+            SpeakerAssignment(0, "s000001", "Speaker 1", 1_000, 1.0, "assigned"),
+            SpeakerAssignment(1, "s000002", "Speaker 1", 1_000, 1.0, "assigned"),
+        ],
+    )
+    provider = FakeProvider()
+
+    outcome = SummaryService(provider=provider, repository=repository).run(
+        transcript_id, use_speakers=False
+    )
+
+    assert provider.requests[0].segments[0].speaker is None
+    assert outcome.diarization_id is None
 
 
 def test_long_summary_uses_source_passes_then_synthesis(

@@ -66,6 +66,9 @@ def test_service_runs_normalizes_persists_and_reuses(tmp_path: Path) -> None:
     assert first.reused is False
     assert second.reused is True
     assert second.diarization_id == first.diarization_id
+    assert first.output_path.name == "interview.diarized.md"
+    assert "**Speaker 1:** First voice" in first.markdown
+    assert first.output_path.read_text(encoding="utf-8") == first.markdown
     assert [segment.speaker for segment in first.segments] == [
         "Speaker 1",
         "Speaker 2",

@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from tranpro.diarization.alignment import align_speakers, normalize_speaker_turns
 from tranpro.diarization.models import DiarizationError, DiarizationProvider
+from tranpro.diarization.render import (
+    render_diarized_markdown,
+    write_diarized_markdown,
+)
 from tranpro.library.models import Segment
 from tranpro.library.repository import LibraryRepository
+from tranpro.transcription.render import content_hash
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +26,8 @@ class DiarizationOutcome:
     turns: int
     speakers: int
     segments: tuple[Segment, ...]
+    markdown: str
+    output_path: Path
     reused: bool
 
 
@@ -43,6 +51,8 @@ class DiarizationService:
         *,
         transcript_id: int | None = None,
         rediarize: bool = False,
+        output: Path | None = None,
+        force: bool = False,
     ) -> DiarizationOutcome:
         recording = self.repository.get_recording(recording_id, include_deleted=False)
         transcript = (
@@ -92,6 +102,17 @@ class DiarizationService:
                 self.repository.get_diarized_segments(reusable.id, transcript.id)
             )
             reused_turns = self.repository.get_speaker_turns(reusable.id)
+            markdown, output_path = self._render(
+                source=source,
+                segments=segments,
+                recording_id=recording_id,
+                transcript_id=transcript.id,
+                diarization_id=reusable.id,
+                provider=reusable.provider,
+                model=reusable.model,
+                output=output,
+                force=force,
+            )
             return DiarizationOutcome(
                 recording_id=recording_id,
                 transcript_id=transcript.id,
@@ -101,6 +122,8 @@ class DiarizationService:
                 turns=len(reused_turns),
                 speakers=len({turn.speaker for turn in reused_turns}),
                 segments=segments,
+                markdown=markdown,
+                output_path=output_path,
                 reused=True,
             )
 
@@ -111,8 +134,8 @@ class DiarizationService:
             settings=descriptor.settings,
         )
         try:
-            output = self.provider.diarize(source)
-            normalized_turns = normalize_speaker_turns(output.turns)
+            provider_output = self.provider.diarize(source)
+            normalized_turns = normalize_speaker_turns(provider_output.turns)
             aligned_assignments = align_speakers(
                 transcript_segments,
                 normalized_turns,
@@ -133,6 +156,17 @@ class DiarizationService:
         segments = tuple(
             self.repository.get_diarized_segments(completed.id, transcript.id)
         )
+        markdown, output_path = self._render(
+            source=source,
+            segments=segments,
+            recording_id=recording_id,
+            transcript_id=transcript.id,
+            diarization_id=completed.id,
+            provider=completed.provider,
+            model=completed.model,
+            output=output,
+            force=force,
+        )
         return DiarizationOutcome(
             recording_id=recording_id,
             transcript_id=transcript.id,
@@ -142,5 +176,48 @@ class DiarizationService:
             turns=len(normalized_turns),
             speakers=len({turn.speaker for turn in normalized_turns}),
             segments=segments,
+            markdown=markdown,
+            output_path=output_path,
             reused=False,
         )
+
+    def _render(
+        self,
+        *,
+        source: Path,
+        segments: tuple[Segment, ...],
+        recording_id: int,
+        transcript_id: int,
+        diarization_id: int,
+        provider: str,
+        model: str,
+        output: Path | None,
+        force: bool,
+    ) -> tuple[str, Path]:
+        markdown = render_diarized_markdown(
+            source=source,
+            segments=segments,
+            provider=provider,
+            model=model,
+            recording_id=recording_id,
+            transcript_id=transcript_id,
+            diarization_id=diarization_id,
+        )
+        output_path = write_diarized_markdown(
+            markdown,
+            source=source,
+            requested_path=output,
+            force=force,
+        )
+        self.repository.record_rendered_output(
+            recording_id=recording_id,
+            transcript_id=transcript_id,
+            summary_id=None,
+            diarization_id=diarization_id,
+            kind="diarized",
+            format="markdown",
+            path=output_path,
+            content_hash=content_hash(markdown),
+            replace=True,
+        )
+        return markdown, output_path

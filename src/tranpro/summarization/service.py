@@ -34,6 +34,7 @@ class SummaryOutcome:
     markdown: str
     output_path: Path
     context_mode: str
+    diarization_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,12 +58,24 @@ class SummaryService:
         prompt_version: int | None = None,
         output: Path | None = None,
         force: bool = False,
+        use_speakers: bool = True,
     ) -> SummaryOutcome:
         transcript = self.repository.get_transcript(transcript_id)
         recording = self.repository.get_recording(transcript.recording_id)
         source = recording.current_path or recording.original_path
         prompt = self.repository.get_prompt(prompt_name, prompt_version)
-        segments = tuple(self.repository.get_segments(transcript_id))
+        diarization = (
+            self.repository.find_preferred_diarization(
+                recording.id, transcript_id=transcript.id
+            )
+            if use_speakers
+            else None
+        )
+        segments = tuple(
+            self.repository.get_diarized_segments(diarization.id, transcript.id)
+            if diarization is not None
+            else self.repository.get_segments(transcript_id)
+        )
         if not segments:
             raise SummarizationError("Cannot summarize an empty transcript")
         plan = plan_context(
@@ -78,6 +91,7 @@ class SummaryService:
             system_contract=SYSTEM_CONTRACT,
             provider=self.provider.name,
             model=self.provider.model,
+            diarization_id=None if diarization is None else diarization.id,
             settings={
                 "context_tokens": self.provider.context_window.max_tokens,
                 "reserved_output_tokens": (
@@ -102,6 +116,7 @@ class SummaryService:
                 recording_id=recording.id,
                 transcript_id=transcript.id,
                 summary_id=completed.id,
+                diarization_id=None if diarization is None else diarization.id,
             )
             output_path = write_summary_markdown(
                 markdown, source=source, requested_path=output, force=force
@@ -110,6 +125,7 @@ class SummaryService:
                 recording_id=recording.id,
                 transcript_id=transcript.id,
                 summary_id=completed.id,
+                diarization_id=None if diarization is None else diarization.id,
                 kind="summary",
                 format="markdown",
                 path=output_path,
@@ -128,6 +144,7 @@ class SummaryService:
             markdown=markdown,
             output_path=output_path,
             context_mode=plan.mode,
+            diarization_id=None if diarization is None else diarization.id,
         )
 
     def _execute_plan(

@@ -39,6 +39,10 @@ tp interview.mp3
 tp diarize 2
 ```
 
+This writes `interview.diarized.md`. Use `--output` to choose a path and
+`--force` to replace an explicitly selected file. `tp show 2` lists every
+immutable diarization run and identifies the preferred one.
+
 Tranpro uses the preferred transcript unless `--transcript ID` selects an exact
 run. An equivalent successful diarization is reused. To intentionally create a
 new immutable run:
@@ -72,3 +76,18 @@ Each run preserves:
 
 The original transcript is never modified. A later retranscription can reuse the
 same recording-level speaker timeline and produce its own immutable alignment.
+
+## Downstream behavior
+
+Once a preferred diarization exists, tranpro automatically uses it for new
+summaries and Google Docs publications. Both artifacts record the exact
+diarization run they used. Opt out for a particular operation when needed:
+
+```console
+tp summarize 2 --without-speakers
+tp publish 2 --without-speakers
+```
+
+Google Docs still omit timestamps by default. Speaker names are included because
+they are part of the transcript text projection; `--with-timestamps` remains a
+separate publication choice.

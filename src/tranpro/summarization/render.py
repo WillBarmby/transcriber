@@ -23,6 +23,7 @@ def render_summary_markdown(
     recording_id: int,
     transcript_id: int,
     summary_id: int,
+    diarization_id: int | None = None,
 ) -> str:
     metadata: dict[str, object] = {
         "source": str(source),
@@ -33,6 +34,8 @@ def render_summary_markdown(
         "transcript_id": transcript_id,
         "summary_id": summary_id,
     }
+    if diarization_id is not None:
+        metadata["diarization_id"] = diarization_id
     timestamps = {
         segment.stable_ref: format_timestamp(segment.start_ms) for segment in segments
     }

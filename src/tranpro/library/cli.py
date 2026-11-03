@@ -109,6 +109,7 @@ def show_recording(recording_id: int) -> None:
     try:
         recording = repository.get_recording(recording_id)
         transcripts = repository.list_transcripts(recording_id)
+        diarizations = repository.list_diarizations(recording_id)
         summaries = repository.list_summaries(recording_id)
         publications = repository.list_publications(recording_id)
     except (DatabaseError, LibraryError, RecordNotFoundError) as error:
@@ -135,13 +136,29 @@ def show_recording(recording_id: int) -> None:
             f"{transcript.status}{preferred}"
         )
 
+    typer.echo("\nDiarizations")
+    if not diarizations:
+        typer.echo("  none")
+    for diarization in diarizations:
+        preferred = " preferred" if diarization.is_preferred else ""
+        typer.echo(
+            f"  #{diarization.id} {diarization.provider}/{diarization.model} "
+            f"{diarization.status}{preferred}"
+        )
+
     typer.echo("\nSummaries")
     if not summaries:
         typer.echo("  none")
     for summary in summaries:
+        diarization_label = (
+            f" diarization #{summary.diarization_id}"
+            if summary.diarization_id is not None
+            else ""
+        )
         typer.echo(
             f"  #{summary.id} transcript #{summary.transcript_id} "
-            f"{summary.provider}/{summary.model} {summary.status} "
+            f"{summary.provider}/{summary.model} {summary.status}"
+            f"{diarization_label} "
             f"prompt={summary.prompt_name}@{summary.prompt_version}"
         )
 
@@ -154,9 +171,14 @@ def show_recording(recording_id: int) -> None:
             if publication.summary_id is not None
             else ""
         )
+        diarization_label = (
+            f" diarization #{publication.diarization_id}"
+            if publication.diarization_id is not None
+            else ""
+        )
         typer.echo(
             f"  #{publication.id} transcript #{publication.transcript_id}"
-            f"{summary_label} "
+            f"{summary_label}{diarization_label} "
             f"{publication.provider} {publication.status}"
         )
         typer.echo(f"    {publication.remote_url}")

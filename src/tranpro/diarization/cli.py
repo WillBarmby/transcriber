@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -64,6 +65,13 @@ def diarize_recording(
             "--rediarize", help="Run the model even if an equivalent run exists."
         ),
     ] = False,
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Diarized Markdown path."),
+    ] = None,
+    force: Annotated[
+        bool, typer.Option("--force", help="Replace an explicitly selected output.")
+    ] = False,
     no_progress: Annotated[
         bool,
         typer.Option("--no-progress", help="Disable the terminal activity spinner."),
@@ -92,12 +100,16 @@ def diarize_recording(
                     recording_id,
                     transcript_id=transcript_id,
                     rediarize=rediarize,
+                    output=output,
+                    force=force,
                 )
         else:
             outcome = service.run(
                 recording_id,
                 transcript_id=transcript_id,
                 rediarize=rediarize,
+                output=output,
+                force=force,
             )
         action = "Reused" if outcome.reused else "Created"
         speaker_label = "speaker" if outcome.speakers == 1 else "speakers"
@@ -107,6 +119,7 @@ def diarize_recording(
             f"Aligned transcript {outcome.transcript_id}: "
             f"{outcome.speakers} {speaker_label}, {outcome.turns} {turn_label}"
         )
+        typer.echo(f"Markdown: {outcome.output_path}")
     except (
         ConfigError,
         DatabaseError,

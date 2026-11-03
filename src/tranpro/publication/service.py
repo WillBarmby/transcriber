@@ -40,13 +40,25 @@ class PublicationService:
         *,
         with_summary: bool = False,
         with_timestamps: bool = False,
+        with_speakers: bool = True,
         update: bool = False,
         title: str | None = None,
         folder_id: str | None = None,
     ) -> PublicationOutcome:
         recording = self.repository.get_recording(recording_id)
         transcript = self.repository.get_preferred_transcript(recording_id)
-        segments = tuple(self.repository.get_segments(transcript.id))
+        diarization = (
+            self.repository.find_preferred_diarization(
+                recording_id, transcript_id=transcript.id
+            )
+            if with_speakers
+            else None
+        )
+        segments = tuple(
+            self.repository.get_diarized_segments(diarization.id, transcript.id)
+            if diarization is not None
+            else self.repository.get_segments(transcript.id)
+        )
         summary = None
         summary_sections: tuple[SummarySection, ...] = ()
         if with_summary:
@@ -92,6 +104,7 @@ class PublicationService:
             recording_id=recording.id,
             transcript_id=transcript.id,
             summary_id=None if summary is None else summary.id,
+            diarization_id=None if diarization is None else diarization.id,
             provider=self.publisher.name,
             remote_id=remote.id,
             remote_url=remote.url,

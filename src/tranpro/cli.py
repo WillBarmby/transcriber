@@ -363,6 +363,13 @@ def summarize_recording(
     force: Annotated[
         bool, typer.Option("--force", help="Replace an explicitly selected output.")
     ] = False,
+    without_speakers: Annotated[
+        bool,
+        typer.Option(
+            "--without-speakers",
+            help="Ignore an existing diarization when creating the summary.",
+        ),
+    ] = False,
 ) -> None:
     """Explicitly summarize a saved transcript with a local or hosted profile."""
 
@@ -392,6 +399,7 @@ def summarize_recording(
             prompt_version=prompt_version,
             output=output,
             force=force,
+            use_speakers=not without_speakers,
         )
         typer.echo(f"Created summary {outcome.summary_id}")
         typer.echo(f"Context: {outcome.context_mode}")
@@ -421,6 +429,7 @@ def _summarize_transcript(
     prompt_version: int | None = None,
     output: Path | None = None,
     force: bool = False,
+    use_speakers: bool = True,
 ) -> SummaryOutcome:
     profile_name = profile or config.default_summary_profile
     selected_provider = build_summary_provider(
@@ -437,6 +446,7 @@ def _summarize_transcript(
             prompt_version=prompt_version,
             output=output,
             force=force,
+            use_speakers=use_speakers,
         )
 
 
