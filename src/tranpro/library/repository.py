@@ -13,6 +13,7 @@ from typing import Any, cast
 from tranpro.library.database import Database
 from tranpro.library.fingerprint import fingerprint_file
 from tranpro.library.models import (
+    DiarizationRun,
     LibraryStats,
     PromptTemplate,
     Publication,
@@ -20,6 +21,8 @@ from tranpro.library.models import (
     RenderedOutput,
     SearchHit,
     Segment,
+    SpeakerAssignment,
+    SpeakerTurn,
     SummaryRun,
     SummarySection,
     SummaryStep,
@@ -319,6 +322,311 @@ class LibraryRepository:
                 )
                 for row in rows
             ]
+
+    def begin_diarization(
+        self,
+        recording_id: int,
+        *,
+        provider: str,
+        model: str,
+        settings: Mapping[str, Any] | None = None,
+    ) -> DiarizationRun:
+        """Create a running recording-level diarization artifact."""
+
+        timestamp = now_iso()
+        with self.database.connect() as connection:
+            self._require_recording(connection, recording_id)
+            cursor = connection.execute(
+                """
+                INSERT INTO diarization_runs(
+                    recording_id, provider, model, settings_json, status,
+                    started_at, created_at
+                ) VALUES (?, ?, ?, ?, 'running', ?, ?)
+                """,
+                (
+                    recording_id,
+                    provider,
+                    model,
+                    self._canonical_json(settings or {}),
+                    timestamp,
+                    timestamp,
+                ),
+            )
+            assert cursor.lastrowid is not None
+            row = connection.execute(
+                "SELECT * FROM diarization_runs WHERE id = ?",
+                (cursor.lastrowid,),
+            ).fetchone()
+            assert row is not None
+            return self._diarization(row)
+
+    def complete_diarization(
+        self,
+        diarization_id: int,
+        *,
+        transcript_id: int,
+        turns: Iterable[SpeakerTurn],
+        assignments: Iterable[SpeakerAssignment],
+    ) -> DiarizationRun:
+        """Atomically seal a run with its timeline and first transcript projection."""
+
+        materialized_turns = list(turns)
+        materialized_assignments = list(assignments)
+        self._validate_turns(materialized_turns)
+        timestamp = now_iso()
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM diarization_runs WHERE id = ?",
+                (diarization_id,),
+            ).fetchone()
+            if row is None or row["status"] != "running":
+                raise LibraryError(
+                    f"Running diarization {diarization_id} was not found"
+                )
+            self._validate_diarization_assignments(
+                connection,
+                recording_id=int(row["recording_id"]),
+                transcript_id=transcript_id,
+                assignments=materialized_assignments,
+            )
+            connection.executemany(
+                """
+                INSERT INTO speaker_turns(
+                    diarization_id, turn_index, source_speaker, speaker,
+                    start_ms, end_ms, confidence
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        diarization_id,
+                        turn.index,
+                        turn.source_speaker,
+                        turn.speaker,
+                        turn.start_ms,
+                        turn.end_ms,
+                        turn.confidence,
+                    )
+                    for turn in materialized_turns
+                ],
+            )
+            self._insert_diarization_assignments(
+                connection,
+                diarization_id=diarization_id,
+                transcript_id=transcript_id,
+                assignments=materialized_assignments,
+            )
+            connection.execute(
+                """
+                UPDATE diarization_runs SET is_preferred = 0
+                WHERE recording_id = ?
+                """,
+                (int(row["recording_id"]),),
+            )
+            connection.execute(
+                """
+                UPDATE diarization_runs
+                SET status = 'succeeded', is_preferred = 1, completed_at = ?
+                WHERE id = ?
+                """,
+                (timestamp, diarization_id),
+            )
+            completed = connection.execute(
+                "SELECT * FROM diarization_runs WHERE id = ?",
+                (diarization_id,),
+            ).fetchone()
+            assert completed is not None
+            return self._diarization(completed)
+
+    def fail_diarization(self, diarization_id: int, error: str) -> DiarizationRun:
+        timestamp = now_iso()
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE diarization_runs
+                SET status = 'failed', error = ?, completed_at = ?
+                WHERE id = ? AND status = 'running'
+                """,
+                (error, timestamp, diarization_id),
+            )
+            if cursor.rowcount == 0:
+                raise LibraryError(
+                    f"Running diarization {diarization_id} was not found"
+                )
+            row = connection.execute(
+                "SELECT * FROM diarization_runs WHERE id = ?",
+                (diarization_id,),
+            ).fetchone()
+            assert row is not None
+            return self._diarization(row)
+
+    def add_diarization_assignments(
+        self,
+        diarization_id: int,
+        transcript_id: int,
+        assignments: Iterable[SpeakerAssignment],
+    ) -> None:
+        """Attach an immutable projection for another transcript of the recording."""
+
+        materialized = list(assignments)
+        with self.database.connect() as connection:
+            run = connection.execute(
+                "SELECT * FROM diarization_runs WHERE id = ? AND status = 'succeeded'",
+                (diarization_id,),
+            ).fetchone()
+            if run is None:
+                raise LibraryError(
+                    f"Successful diarization {diarization_id} was not found"
+                )
+            self._validate_diarization_assignments(
+                connection,
+                recording_id=int(run["recording_id"]),
+                transcript_id=transcript_id,
+                assignments=materialized,
+            )
+            existing = connection.execute(
+                """
+                SELECT count(*) AS count FROM diarization_assignments
+                WHERE diarization_id = ? AND transcript_id = ?
+                """,
+                (diarization_id, transcript_id),
+            ).fetchone()
+            assert existing is not None
+            if int(existing["count"]) > 0:
+                raise LibraryError(
+                    f"Diarization {diarization_id} already has assignments for "
+                    f"transcript {transcript_id}"
+                )
+            self._insert_diarization_assignments(
+                connection,
+                diarization_id=diarization_id,
+                transcript_id=transcript_id,
+                assignments=materialized,
+            )
+
+    def find_reusable_diarization(
+        self,
+        recording_id: int,
+        *,
+        provider: str,
+        model: str,
+        settings: Mapping[str, Any] | None = None,
+    ) -> DiarizationRun | None:
+        settings_json = self._canonical_json(settings or {})
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM diarization_runs
+                WHERE recording_id = ? AND provider = ? AND model = ?
+                  AND settings_json = ? AND status = 'succeeded'
+                ORDER BY created_at DESC, id DESC LIMIT 1
+                """,
+                (recording_id, provider, model, settings_json),
+            ).fetchone()
+            return None if row is None else self._diarization(row)
+
+    def get_preferred_diarization(self, recording_id: int) -> DiarizationRun:
+        with self.database.connect() as connection:
+            self._require_recording(connection, recording_id)
+            row = connection.execute(
+                """
+                SELECT * FROM diarization_runs
+                WHERE recording_id = ? AND is_preferred = 1
+                ORDER BY created_at DESC, id DESC LIMIT 1
+                """,
+                (recording_id,),
+            ).fetchone()
+            if row is None:
+                raise LibraryError(
+                    f"Recording {recording_id} has no preferred diarization"
+                )
+            return self._diarization(row)
+
+    def list_diarizations(self, recording_id: int) -> list[DiarizationRun]:
+        with self.database.connect() as connection:
+            self._require_recording(connection, recording_id)
+            rows = connection.execute(
+                """
+                SELECT * FROM diarization_runs WHERE recording_id = ?
+                ORDER BY created_at DESC, id DESC
+                """,
+                (recording_id,),
+            ).fetchall()
+            return [self._diarization(row) for row in rows]
+
+    def get_speaker_turns(self, diarization_id: int) -> list[SpeakerTurn]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM speaker_turns WHERE diarization_id = ?
+                ORDER BY turn_index
+                """,
+                (diarization_id,),
+            ).fetchall()
+            if not rows:
+                run = connection.execute(
+                    "SELECT id FROM diarization_runs WHERE id = ?",
+                    (diarization_id,),
+                ).fetchone()
+                if run is None:
+                    raise LibraryError(f"Diarization {diarization_id} was not found")
+            return [
+                SpeakerTurn(
+                    index=int(row["turn_index"]),
+                    start_ms=int(row["start_ms"]),
+                    end_ms=int(row["end_ms"]),
+                    speaker=str(row["speaker"]),
+                    source_speaker=str(row["source_speaker"]),
+                    confidence=(
+                        None if row["confidence"] is None else float(row["confidence"])
+                    ),
+                )
+                for row in rows
+            ]
+
+    def get_speaker_assignments(
+        self, diarization_id: int, transcript_id: int
+    ) -> list[SpeakerAssignment]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM diarization_assignments
+                WHERE diarization_id = ? AND transcript_id = ?
+                ORDER BY segment_index
+                """,
+                (diarization_id, transcript_id),
+            ).fetchall()
+            return [
+                SpeakerAssignment(
+                    segment_index=int(row["segment_index"]),
+                    stable_ref=str(row["stable_ref"]),
+                    speaker=None if row["speaker"] is None else str(row["speaker"]),
+                    overlap_ms=int(row["overlap_ms"]),
+                    confidence=float(row["confidence"]),
+                    status=str(row["status"]),
+                )
+                for row in rows
+            ]
+
+    def get_diarized_segments(
+        self, diarization_id: int, transcript_id: int
+    ) -> list[Segment]:
+        segments = self.get_segments(transcript_id)
+        assignments = self.get_speaker_assignments(diarization_id, transcript_id)
+        if len(assignments) != len(segments):
+            raise LibraryError(
+                f"Diarization {diarization_id} is not aligned to transcript "
+                f"{transcript_id}"
+            )
+        return [
+            Segment(
+                index=segment.index,
+                start_ms=segment.start_ms,
+                end_ms=segment.end_ms,
+                text=segment.text,
+                speaker=assignment.speaker,
+            )
+            for segment, assignment in zip(segments, assignments, strict=True)
+        ]
 
     def save_prompt(self, name: str, instructions: str) -> PromptTemplate:
         """Save a new immutable version of a user prompt."""
@@ -1100,6 +1408,92 @@ class LibraryRepository:
                 raise ValueError(f"segment {segment.index} has no text")
 
     @staticmethod
+    def _validate_turns(turns: list[SpeakerTurn]) -> None:
+        for expected_index, turn in enumerate(turns):
+            if turn.index != expected_index:
+                raise ValueError(
+                    "speaker turn indexes must be contiguous and start at zero"
+                )
+            if turn.start_ms < 0 or turn.end_ms < turn.start_ms:
+                raise ValueError(f"invalid timestamps for speaker turn {turn.index}")
+            if not turn.speaker.strip() or not turn.source_speaker.strip():
+                raise ValueError(f"speaker turn {turn.index} has no speaker")
+            if turn.confidence is not None and not 0 <= turn.confidence <= 1:
+                raise ValueError(f"invalid confidence for speaker turn {turn.index}")
+
+    @staticmethod
+    def _validate_diarization_assignments(
+        connection: sqlite3.Connection,
+        *,
+        recording_id: int,
+        transcript_id: int,
+        assignments: list[SpeakerAssignment],
+    ) -> None:
+        transcript = connection.execute(
+            "SELECT recording_id FROM transcript_runs WHERE id = ?",
+            (transcript_id,),
+        ).fetchone()
+        if transcript is None or int(transcript["recording_id"]) != recording_id:
+            raise LibraryError(
+                f"Transcript {transcript_id} does not belong to recording "
+                f"{recording_id}"
+            )
+        segment_rows = connection.execute(
+            """
+            SELECT segment_index, stable_ref FROM transcript_segments
+            WHERE transcript_id = ? ORDER BY segment_index
+            """,
+            (transcript_id,),
+        ).fetchall()
+        if len(assignments) != len(segment_rows):
+            raise ValueError("speaker assignments must cover every transcript segment")
+        for assignment, segment in zip(assignments, segment_rows, strict=True):
+            if assignment.segment_index != int(
+                segment["segment_index"]
+            ) or assignment.stable_ref != str(segment["stable_ref"]):
+                raise ValueError(
+                    "speaker assignments must match transcript segments in order"
+                )
+            if assignment.status not in {"assigned", "mixed", "unassigned"}:
+                raise ValueError(
+                    f"invalid speaker assignment status {assignment.status}"
+                )
+            if assignment.overlap_ms < 0 or not 0 <= assignment.confidence <= 1:
+                raise ValueError(
+                    f"invalid speaker assignment for {assignment.stable_ref}"
+                )
+
+    @staticmethod
+    def _insert_diarization_assignments(
+        connection: sqlite3.Connection,
+        *,
+        diarization_id: int,
+        transcript_id: int,
+        assignments: list[SpeakerAssignment],
+    ) -> None:
+        connection.executemany(
+            """
+            INSERT INTO diarization_assignments(
+                diarization_id, transcript_id, segment_index, stable_ref,
+                speaker, overlap_ms, confidence, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    diarization_id,
+                    transcript_id,
+                    assignment.segment_index,
+                    assignment.stable_ref,
+                    assignment.speaker,
+                    assignment.overlap_ms,
+                    assignment.confidence,
+                    assignment.status,
+                )
+                for assignment in assignments
+            ],
+        )
+
+    @staticmethod
     def _require_recording(connection: sqlite3.Connection, recording_id: int) -> None:
         row = connection.execute(
             "SELECT id FROM recordings WHERE id = ?", (recording_id,)
@@ -1132,6 +1526,18 @@ class LibraryRepository:
             model=str(row["model"]),
             status=str(row["status"]),
             language=None if row["language"] is None else str(row["language"]),
+            is_preferred=bool(row["is_preferred"]),
+            created_at=str(row["created_at"]),
+        )
+
+    @staticmethod
+    def _diarization(row: sqlite3.Row) -> DiarizationRun:
+        return DiarizationRun(
+            id=int(row["id"]),
+            recording_id=int(row["recording_id"]),
+            provider=str(row["provider"]),
+            model=str(row["model"]),
+            status=str(row["status"]),
             is_preferred=bool(row["is_preferred"]),
             created_at=str(row["created_at"]),
         )

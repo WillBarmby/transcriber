@@ -281,6 +281,68 @@ MIGRATIONS: dict[int, str] = {
         CREATE INDEX publications_content_idx
             ON publications(provider, content_hash, created_at DESC);
     """,
+    5: """
+        CREATE TABLE diarization_runs (
+            id INTEGER PRIMARY KEY,
+            recording_id INTEGER NOT NULL
+                REFERENCES recordings(id) ON DELETE CASCADE,
+            provider TEXT NOT NULL,
+            model TEXT NOT NULL,
+            settings_json TEXT NOT NULL DEFAULT '{}',
+            status TEXT NOT NULL
+                CHECK (status IN ('running', 'succeeded', 'failed')),
+            is_preferred INTEGER NOT NULL DEFAULT 0
+                CHECK (is_preferred IN (0, 1)),
+            started_at TEXT NOT NULL,
+            completed_at TEXT,
+            error TEXT,
+            created_at TEXT NOT NULL
+        ) STRICT;
+
+        CREATE INDEX diarization_runs_recording_idx
+            ON diarization_runs(recording_id, created_at DESC);
+        CREATE UNIQUE INDEX diarization_runs_one_preferred_idx
+            ON diarization_runs(recording_id)
+            WHERE is_preferred = 1;
+
+        CREATE TABLE speaker_turns (
+            id INTEGER PRIMARY KEY,
+            diarization_id INTEGER NOT NULL
+                REFERENCES diarization_runs(id) ON DELETE CASCADE,
+            turn_index INTEGER NOT NULL CHECK (turn_index >= 0),
+            source_speaker TEXT NOT NULL,
+            speaker TEXT NOT NULL,
+            start_ms INTEGER NOT NULL CHECK (start_ms >= 0),
+            end_ms INTEGER NOT NULL CHECK (end_ms >= start_ms),
+            confidence REAL CHECK (
+                confidence IS NULL OR (confidence >= 0 AND confidence <= 1)
+            ),
+            UNIQUE (diarization_id, turn_index)
+        ) STRICT;
+
+        CREATE INDEX speaker_turns_timeline_idx
+            ON speaker_turns(diarization_id, start_ms, end_ms);
+
+        CREATE TABLE diarization_assignments (
+            id INTEGER PRIMARY KEY,
+            diarization_id INTEGER NOT NULL
+                REFERENCES diarization_runs(id) ON DELETE CASCADE,
+            transcript_id INTEGER NOT NULL
+                REFERENCES transcript_runs(id) ON DELETE CASCADE,
+            segment_index INTEGER NOT NULL CHECK (segment_index >= 0),
+            stable_ref TEXT NOT NULL,
+            speaker TEXT,
+            overlap_ms INTEGER NOT NULL CHECK (overlap_ms >= 0),
+            confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+            status TEXT NOT NULL
+                CHECK (status IN ('assigned', 'mixed', 'unassigned')),
+            UNIQUE (diarization_id, transcript_id, segment_index),
+            UNIQUE (diarization_id, transcript_id, stable_ref)
+        ) STRICT;
+
+        CREATE INDEX diarization_assignments_transcript_idx
+            ON diarization_assignments(transcript_id, diarization_id);
+    """,
 }
 
 LATEST_SCHEMA_VERSION = max(MIGRATIONS)

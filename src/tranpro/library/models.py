@@ -45,6 +45,37 @@ class TranscriptRun:
 
 
 @dataclass(frozen=True, slots=True)
+class DiarizationRun:
+    id: int
+    recording_id: int
+    provider: str
+    model: str
+    status: str
+    is_preferred: bool
+    created_at: str
+
+
+@dataclass(frozen=True, slots=True)
+class SpeakerTurn:
+    index: int
+    start_ms: int
+    end_ms: int
+    speaker: str
+    source_speaker: str
+    confidence: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SpeakerAssignment:
+    segment_index: int
+    stable_ref: str
+    speaker: str | None
+    overlap_ms: int
+    confidence: float
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
 class PromptTemplate:
     id: int
     name: str

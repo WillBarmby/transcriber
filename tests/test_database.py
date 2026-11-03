@@ -40,6 +40,9 @@ def test_initialize_creates_current_strict_schema(app_paths: AppPaths) -> None:
         "summary_sections",
         "search_index",
         "rendered_outputs",
+        "diarization_runs",
+        "speaker_turns",
+        "diarization_assignments",
     } <= tables
 
 
