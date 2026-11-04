@@ -24,6 +24,14 @@ tp --version
 tp recording.m4a
 ```
 
+Install the optional local speaker diarization backend with:
+
+```shell
+python3 -m pip install 'tranpro[diarization]'
+```
+
+For a managed global command, use `pipx install 'tranpro[diarization]'`.
+
 The first transcription downloads the model from Hugging Face and caches it for
 later runs. Parakeet MLX is installed automatically only on Apple Silicon;
 other platforms receive the portable CLI and database without that dependency.

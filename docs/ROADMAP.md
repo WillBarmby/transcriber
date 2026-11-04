@@ -67,6 +67,6 @@ Semantic search is a planned extension after the core library stabilizes. Its
 passage index will be versioned and derived from canonical transcript segments so
 it can coexist with SQLite FTS without changing recording identity.
 
-Speaker diarization is also planned as an optional second pass over timestamped
-segments. It will remain provider-independent so local diarizers can be compared
-without coupling speaker labels to the transcription model.
+Speaker diarization is available as an optional Nemotron MLX second pass over
+timestamped segments. It remains a separate artifact from transcription, and
+labels can flow into summaries and published documents.
