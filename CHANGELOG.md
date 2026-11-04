@@ -3,6 +3,17 @@
 All notable changes to tranpro are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## 0.2.0a1 - Unreleased
+
+Second public alpha.
+
+### Added
+
+- Grounded local Ollama and hosted OpenAI summarization with reusable versioned prompts.
+- Google Docs publication with secure OAuth, immutable snapshots, and opt-in timestamps.
+- Optional local Nemotron speaker diarization, available to summaries and publications.
+- Open a published Google Doc directly from the CLI with `tp publish --open`.
+
 ## 0.1.0a1 - 2026-11-02
 
 First public alpha.

@@ -29,6 +29,14 @@ desired.
 The manual workflow publishes only to TestPyPI. Re-running the same version is
 safe: an already uploaded file is skipped.
 
+The `0.2.0a1` release includes the optional MLX Audio diarization extra. Check
+both the standard installation and the extra on Apple Silicon before tagging:
+
+```shell
+python3 -m pip install 'tranpro[diarization]'
+tp diarize --help
+```
+
 ## Publish to PyPI
 
 After the TestPyPI rehearsal succeeds, tag the exact tested commit and push the
@@ -43,8 +51,8 @@ git push origin v0.1.0a1
 
 A `v*` tag makes the workflow rebuild the distributions, verify a clean wheel
 installation, publish to PyPI, and create a GitHub release containing the wheel
-and source distribution. The tag version must match the package version without
-the leading `v`.
+and source distribution. Alpha and beta tags create prerelease GitHub releases.
+The tag version must match the package version without the leading `v`.
 
 Finally, verify the public installation in a fresh virtual environment:
 

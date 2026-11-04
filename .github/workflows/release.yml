@@ -84,7 +84,12 @@ jobs:
         with:
           name: python-package-distributions
           path: dist/
-      - run: gh release create "${GITHUB_REF_NAME}" dist/* --generate-notes --verify-tag
+      - run: |
+          prerelease_flag=""
+          if [[ "${GITHUB_REF_NAME}" =~ (a|b|rc)[0-9]+$ ]]; then
+            prerelease_flag="--prerelease"
+          fi
+          gh release create "${GITHUB_REF_NAME}" dist/* --generate-notes --verify-tag ${prerelease_flag}
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
